@@ -2,6 +2,8 @@
 
 [English](README.md) | [日本語](README-ja.md)
 
+[![CI](https://github.com/wistaria/bloch-stereo/actions/workflows/ci.yml/badge.svg)](https://github.com/wistaria/bloch-stereo/actions/workflows/ci.yml)
+
 量子回路、Bloch 球、縮約密度行列、相関、エンタングルメントを、ブラウザ上で直感的に可視化するためのステレオ対応量子回路エディタです。
 
 科学館・展示・教育デモ・対話的な量子情報の学習を主な用途として想定しています。

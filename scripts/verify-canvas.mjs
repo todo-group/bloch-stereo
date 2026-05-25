@@ -1,5 +1,7 @@
 import { chromium } from "playwright";
 import { PNG } from "pngjs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 const url = process.env.BLOCH_STEREO_URL ?? "http://127.0.0.1:5173/";
 const viewports = [
@@ -29,7 +31,7 @@ try {
       };
     });
 
-    const screenshotPath = `/private/tmp/bloch-stereo-${viewport.name}.png`;
+    const screenshotPath = join(tmpdir(), `bloch-stereo-${viewport.name}.png`);
     const imageBuffer = await page.locator(".bloch-stage").screenshot({ path: screenshotPath });
     const image = PNG.sync.read(imageBuffer);
     const pixelResult = analyzePixels(image);

@@ -2,6 +2,8 @@
 
 [English](README.md) | [日本語](README-ja.md)
 
+[![CI](https://github.com/wistaria/bloch-stereo/actions/workflows/ci.yml/badge.svg)](https://github.com/wistaria/bloch-stereo/actions/workflows/ci.yml)
+
 Interactive stereoscopic visualization environment for quantum circuits, Bloch spheres, reduced density matrices, and entanglement.
 Designed for:
 - science exhibitions
