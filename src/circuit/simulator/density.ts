@@ -1,0 +1,132 @@
+import { add, complex, conj, mul } from "../../math/complex";
+import type { BlochVector, Complex } from "../types";
+
+export type Matrix = Complex[][];
+
+const PAULI_X: Matrix = [
+  [complex(0), complex(1)],
+  [complex(1), complex(0)],
+];
+const PAULI_Y: Matrix = [
+  [complex(0), complex(0, -1)],
+  [complex(0, 1), complex(0)],
+];
+const PAULI_Z: Matrix = [
+  [complex(1), complex(0)],
+  [complex(0), complex(-1)],
+];
+const PAULIS = [PAULI_X, PAULI_Y, PAULI_Z];
+
+export function singleQubitDensityMatrix(
+  statevector: Complex[],
+  numQubits: number,
+  qubit: number,
+): [[Complex, Complex], [Complex, Complex]] {
+  const rho = [
+    [complex(0), complex(0)],
+    [complex(0), complex(0)],
+  ] as [[Complex, Complex], [Complex, Complex]];
+  const mask = 1 << qubit;
+
+  for (let basis = 0; basis < 1 << numQubits; basis += 1) {
+    if ((basis & mask) !== 0) continue;
+    const zeroIndex = basis;
+    const oneIndex = basis | mask;
+    const a0 = statevector[zeroIndex];
+    const a1 = statevector[oneIndex];
+    rho[0][0] = add(rho[0][0], mul(a0, conj(a0)));
+    rho[0][1] = add(rho[0][1], mul(a0, conj(a1)));
+    rho[1][0] = add(rho[1][0], mul(a1, conj(a0)));
+    rho[1][1] = add(rho[1][1], mul(a1, conj(a1)));
+  }
+
+  return rho;
+}
+
+export function blochVectorFromDensity(rho: [[Complex, Complex], [Complex, Complex]]): BlochVector {
+  const x = 2 * rho[0][1].re;
+  const y = -2 * rho[0][1].im;
+  const z = rho[0][0].re - rho[1][1].re;
+  const lengthSquared = x * x + y * y + z * z;
+  return {
+    x: sanitize(x),
+    y: sanitize(y),
+    z: sanitize(z),
+    purity: sanitize((1 + lengthSquared) / 2),
+  };
+}
+
+export function blochVectorsForState(statevector: Complex[], numQubits: number): BlochVector[] {
+  return Array.from({ length: numQubits }, (_, qubit) =>
+    blochVectorFromDensity(singleQubitDensityMatrix(statevector, numQubits, qubit)),
+  );
+}
+
+export function twoQubitDensityMatrix(
+  statevector: Complex[],
+  numQubits: number,
+  first: number,
+  second: number,
+): Matrix {
+  const rho = Array.from({ length: 4 }, () => Array.from({ length: 4 }, () => complex(0)));
+  const low = Math.min(first, second);
+  const high = Math.max(first, second);
+
+  for (let row = 0; row < statevector.length; row += 1) {
+    for (let col = 0; col < statevector.length; col += 1) {
+      if (sameEnvironment(row, col, numQubits, first, second)) {
+        const rowPair = pairIndex(row, low, high);
+        const colPair = pairIndex(col, low, high);
+        rho[rowPair][colPair] = add(rho[rowPair][colPair], mul(statevector[row], conj(statevector[col])));
+      }
+    }
+  }
+
+  return rho;
+}
+
+export function correlationMatrix(statevector: Complex[], numQubits: number, first: number, second: number): number[][] {
+  const rho = twoQubitDensityMatrix(statevector, numQubits, first, second);
+  return PAULIS.map((pauliA) =>
+    PAULIS.map((pauliB) => {
+      const sigma = kron2(pauliA, pauliB);
+      let trace = complex(0);
+      for (let row = 0; row < 4; row += 1) {
+        for (let col = 0; col < 4; col += 1) {
+          trace = add(trace, mul(rho[row][col], sigma[col][row]));
+        }
+      }
+      return sanitize(trace.re);
+    }),
+  );
+}
+
+function pairIndex(basis: number, low: number, high: number): number {
+  const lowBit = (basis >> low) & 1;
+  const highBit = (basis >> high) & 1;
+  return lowBit + (highBit << 1);
+}
+
+function sameEnvironment(row: number, col: number, numQubits: number, first: number, second: number): boolean {
+  for (let qubit = 0; qubit < numQubits; qubit += 1) {
+    if (qubit === first || qubit === second) continue;
+    if (((row >> qubit) & 1) !== ((col >> qubit) & 1)) return false;
+  }
+  return true;
+}
+
+function kron2(a: Matrix, b: Matrix): Matrix {
+  return Array.from({ length: 4 }, (_, row) =>
+    Array.from({ length: 4 }, (_, col) => {
+      const aRow = Math.floor(row / 2);
+      const aCol = Math.floor(col / 2);
+      const bRow = row % 2;
+      const bCol = col % 2;
+      return mul(a[aRow][aCol], b[bRow][bCol]);
+    }),
+  );
+}
+
+function sanitize(value: number): number {
+  return Math.abs(value) < 1e-10 ? 0 : Math.max(-1, Math.min(1, value));
+}
