@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Circuit, DisplayMode, ExecutionState, GateName } from "../circuit/types";
+import type { Circuit, DisplayMode, ExecutionState, GateName, GateOp } from "../circuit/types";
 import { exportQasm2 } from "../circuit/qasm2/exporter";
 import { parseQasm2 } from "../circuit/qasm2/parser";
 import { executeCircuit } from "../circuit/simulator/simulator";
@@ -70,6 +70,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         snapshots: recalculate(circuit, get().forcedBranch),
         currentStep: 0,
         autoplay: false,
+        targetQubit: clamp(get().targetQubit, 0, circuit.numQubits - 1),
+        controlQubit: clamp(get().controlQubit, 0, circuit.numQubits - 1),
         error: undefined,
       });
     } catch (error) {
@@ -95,13 +97,19 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   addGate: () => {
     const state = get();
-    const op = makeGateOp(
+    const result = makeGateOp(
       state.selectedGate,
       state.circuit.ops.length,
       state.targetQubit,
       state.controlQubit,
       state.circuit.numQubits,
+      state.circuit.numClbits,
     );
+    if (!result.ok) {
+      set({ error: result.error, autoplay: false });
+      return;
+    }
+    const op = result.op;
     const circuit = { ...state.circuit, ops: [...state.circuit.ops, op] };
     set({
       circuit,
@@ -168,41 +176,69 @@ function branchToForcedMeasurements(branch: ForcedBranch): Array<0 | 1> | undefi
   return [(value & 1) as 0 | 1, ((value >> 1) & 1) as 0 | 1];
 }
 
-function makeGateOp(name: GateName, step: number, target: number, control: number, numQubits: number) {
+type GateOpResult =
+  | { ok: true; op: GateOp }
+  | { ok: false; error: string };
+
+function makeGateOp(
+  name: GateName,
+  step: number,
+  target: number,
+  control: number,
+  numQubits: number,
+  numClbits: number,
+): GateOpResult {
+  if (target < 0 || target >= numQubits) {
+    return { ok: false, error: `Target q${target} is outside the circuit.` };
+  }
   const fallbackQubit = target === 0 ? Math.min(1, numQubits - 1) : 0;
   if (name === "cx" || name === "cz") {
+    if (numQubits < 2) return { ok: false, error: `${name.toUpperCase()} requires at least 2 qubits.` };
     return {
-      id: `op-${Date.now()}-${step}`,
-      name,
-      controls: [control === target ? fallbackQubit : control],
-      targets: [target],
-      step,
+      ok: true,
+      op: {
+        id: `op-${Date.now()}-${step}`,
+        name,
+        controls: [control === target ? fallbackQubit : control],
+        targets: [target],
+        step,
+      },
     };
   }
   if (name === "swap") {
+    if (numQubits < 2) return { ok: false, error: "SWAP requires at least 2 qubits." };
     return {
-      id: `op-${Date.now()}-${step}`,
-      name,
-      targets: [control === target ? fallbackQubit : control, target],
-      step,
+      ok: true,
+      op: {
+        id: `op-${Date.now()}-${step}`,
+        name,
+        targets: [control === target ? fallbackQubit : control, target],
+        step,
+      },
     };
   }
   if (name === "measure") {
     return {
-      id: `op-${Date.now()}-${step}`,
-      name,
-      targets: [target],
-      clbits: [target],
-      step,
+      ok: true,
+      op: {
+        id: `op-${Date.now()}-${step}`,
+        name,
+        targets: [target],
+        clbits: [Math.min(target, numClbits - 1)],
+        step,
+      },
     };
   }
   const params = name === "rx" || name === "ry" || name === "rz" ? [Math.PI / 2] : undefined;
   return {
-    id: `op-${Date.now()}-${step}`,
-    name,
-    targets: [target],
-    params,
-    step,
+    ok: true,
+    op: {
+      id: `op-${Date.now()}-${step}`,
+      name,
+      targets: [target],
+      params,
+      step,
+    },
   };
 }
 

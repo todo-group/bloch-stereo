@@ -273,20 +273,51 @@ select {
 }
 
 .op-chip {
+  display: flex;
   flex: 0 0 auto;
   min-width: 118px;
-  justify-content: space-between;
+  overflow: hidden;
   border-color: rgba(15, 23, 42, 0.14);
   background: #e2e8f0;
   color: #0f172a;
   font-weight: 800;
+  border-radius: 8px;
 }
 
-.op-chip span {
+.op-select,
+.delete-op {
+  min-height: 46px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.op-select {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  min-width: 0;
+  padding: 0 8px 0 12px;
+}
+
+.op-select:hover,
+.op-select:focus-visible,
+.delete-op:hover,
+.delete-op:focus-visible {
+  background: rgba(15, 23, 42, 0.08);
+  border-color: transparent;
+}
+
+.op-select span {
   color: #475569;
 }
 
-.op-chip svg {
+.delete-op {
+  flex: 0 0 38px;
+  padding: 0;
+}
+
+.delete-op svg {
   width: 17px;
   height: 17px;
   color: #991b1b;

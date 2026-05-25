@@ -1,96 +1,205 @@
 # Bloch Stereo Quantum Circuit Editor Specification
-Version: 0.3
+
+Version: 0.4
+Last updated: 2026-05-25
+
 ---
-# Overview
-This project extends Bloch Stereo into an interactive stereoscopic quantum circuit visualization environment.
-The system combines:
+
+## Overview
+
+Bloch Stereo is an interactive browser-based quantum circuit visualization environment.
+
+The current implementation combines:
+
 - lightweight quantum circuit editing
-- OpenQASM import/export
+- OpenQASM 2.0 import/export
+- exact statevector simulation for small circuits
 - step-by-step execution
 - animated Bloch-sphere visualization
-- reduced density matrix visualization
-- entanglement visualization
-- stereoscopic rendering
-- exhibition-oriented interaction design
+- single-qubit reduced density matrix calculations
+- two-qubit correlation matrix visualization
+- red-green anaglyph stereoscopic rendering
+- an educational quantum teleportation preset
+- exhibition-oriented controls with large targets
+
 The system is intended for:
+
 - science museums
 - public exhibitions
 - educational demonstrations
 - quantum information visualization
 - interactive learning
 - small-scale quantum circuit exploration
-The design priorities are:
+
+Design priorities:
+
 - intuitive understanding
 - real-time feedback
 - visually smooth transitions
-- stereoscopic depth perception
+- stereoscopic readability
 - browser-based execution
-- lightweight operation
+- low cognitive load
+
 ---
-# Core Features
-The system SHALL support:
-1. OpenQASM 2.0 import/export
-2. Lightweight quantum circuit editor
-3. Circuit visualization
-4. Step-by-step execution
-5. Animated Bloch-vector transitions
-6. Single-qubit reduced density matrix visualization
-7. Two-qubit reduced density matrix visualization
-8. Correlation matrix visualization
-9. Quantum teleportation visualization
-10. Red-green stereoscopic rendering
-11. Stream Deck integration
-12. Trackball-oriented interaction
+
+## Implementation Status
+
+### Implemented In The Initial Version
+
+- Vite + React + TypeScript application shell
+- Zustand application state
+- SVG circuit timeline display
+- gate palette and append-only gate insertion
+- gate deletion from the operation strip
+- OpenQASM 2.0 text import/export
+- exact statevector simulation
+- measurement probability calculation, sampling, forced branches, collapse, and classical bit updates
+- conditional execution using full classical-register integer values such as `if (c==1)`
+- execution snapshots for every step
+- previous step, next step, reset, autoplay
+- Three.js Bloch sphere renderer
+- semi-transparent Bloch sphere globes with latitude/longitude grids
+- smoothstep Bloch-vector animation over 400 ms
+- mixed-state Bloch-vector length preservation during interpolation
+- pointer-driven inertial camera rotation
+- wheel zoom
+- standard 2D rendering
+- red-green/cyan anaglyph rendering via Three.js `AnaglyphEffect`
+- stereo mode switching without restart
+- single-qubit purity display
+- two-qubit correlation matrix for `q0/q1`
+- classical bit readout
+- teleportation preset
+- random measurement mode
+- forced measurement branches: `00`, `01`, `10`, `11`
+- Vitest coverage for parser and simulator core behavior
+- Playwright screenshot/canvas verification script
+- English and Japanese README files with language switching
+
+### Not Implemented In The Initial Version
+
+- drag-and-drop gate movement
+- inline parameter editing UI
+- keyboard shortcuts
+- undo/redo
+- multiple quantum or classical registers
+- arbitrary OpenQASM include semantics
+- custom gate definitions
+- OpenQASM 3 control flow
+- Stream Deck hardware integration
+- configurable stereo eye separation UI
+- configurable convergence distance UI
+- Bloch trajectory history
+- animated correlation-matrix interpolation
+- explicit entanglement indicator
+- full two-qubit density matrix UI
+- gate-aware geometric rotation animation for `rx`, `ry`, `rz`
+- hardware backend execution
+- noise simulation
+- GPU acceleration
+- tensor-network backend
+- WebXR
+
 ---
-# Scope
-## Included
-- OpenQASM 2.0
+
+## Core Features
+
+The initial version supports:
+
+1. OpenQASM 2.0 import/export for the supported subset
+2. lightweight circuit editing by appending and deleting gates
+3. circuit visualization as a horizontal timeline
+4. step-by-step execution
+5. animated Bloch-vector transitions
+6. single-qubit reduced density matrices
+7. two-qubit reduced density matrices in the simulator layer
+8. 3x3 correlation matrix visualization for `q0/q1`
+9. quantum teleportation demonstration
+10. red-green/cyan anaglyph stereoscopic rendering
+11. trackball-friendly camera rotation and zoom
+
+Stream Deck support remains a future hardware integration goal.
+
+---
+
+## Target Scope
+
+### Included
+
+- OpenQASM 2.0 subset
 - pure-state simulation
 - measurement
 - conditional execution
 - reduced density matrices
+- Bloch vectors
+- correlation matrices
 - stereoscopic rendering
 - animated visualization
 - browser execution
 - teleportation demonstration
-## Excluded (initial version)
-- OpenQASM 3 control flow
-- GPU acceleration
-- hardware backend execution
-- noise simulation
+
+### Excluded From Initial Version
+
+- OpenQASM 3
+- custom gates
+- hardware quantum backends
+- noise channels
 - pulse-level programming
-- tensor-network backend
+- tensor-network simulation
+- distributed or HPC simulation
+
 ---
-# Target Hardware
-## Display
-- standard 2D monitor
-- red-green anaglyph stereoscopic display
----
-# Input Devices
-## Right Hand
-Primary device:
-- Elecom HUGE PLUS trackball
----
-# Left Hand
-Secondary device:
-- Elgato Stream Deck MK.2 (15-key)
----
-# Interaction Philosophy
-The interaction model SHALL support operation while:
-- wearing red-green stereoscopic glasses
-- viewing the display continuously
-- minimizing keyboard usage
-- minimizing precise mouse motion
-The system SHALL optimize for:
-- large targets
+
+## Target Hardware And Interaction
+
+### Display
+
+Supported display modes:
+
+1. standard 2D monitor
+2. red-green or red-cyan anaglyph stereoscopic display
+
+### Pointing Device
+
+Primary pointing device:
+
+- Elecom HUGE PLUS trackball, or similar large trackball
+
+The UI should remain usable with:
+
+- low cursor precision
 - low cursor travel
-- one-touch operations
-- exhibition robustness
+- continuous camera rotation
+
+### Macro Device
+
+Target future macro device:
+
+- Elgato Stream Deck MK.2
+
+The initial version exposes the intended actions as visible UI buttons, but does not yet communicate with Stream Deck hardware.
+
+### Implemented Interaction Model
+
+- left click selects steps and controls
+- pointer drag rotates the Bloch camera with damping
+- wheel zooms the Bloch camera
+- large transport buttons are always visible
+- stereo toggle is available without restart
+- teleportation preset is one click from the top toolbar
+
 ---
-# Architecture
+
+## Architecture
+
 ```txt
 +-----------------------+
 | Circuit Editor UI     |
++-----------------------+
+            |
+            v
++-----------------------+
+| Zustand App Store     |
 +-----------------------+
             |
             v
@@ -114,34 +223,81 @@ The system SHALL optimize for:
              +--------------------------------------+
              | Bloch Stereo Visualization Engine    |
              +--------------------------------------+
+```
 
-⸻
+### Technology Stack
 
-Technology Stack
+Frontend:
 
-Frontend
+- TypeScript
+- React
+- Vite
 
-* TypeScript
-* React
-* Vite
+Rendering:
 
-⸻
+- Three.js
+- WebGL
+- Three.js `AnaglyphEffect`
 
-Rendering
+State management:
 
-* Three.js
-* WebGL
+- Zustand
 
-⸻
+Testing and verification:
 
-State Management
+- Vitest
+- Playwright
+- pngjs for screenshot analysis
 
-* Zustand
+---
 
-⸻
+## File Structure
 
-Circuit Representation
+Current implemented structure:
 
+```txt
+src/
+  App.tsx
+  main.tsx
+  math/
+    complex.ts
+  circuit/
+    types.ts
+    editor/
+      CircuitCanvas.tsx
+      CircuitEditor.tsx
+      GatePalette.tsx
+    qasm2/
+      exporter.ts
+      parser.ts
+      parser.test.ts
+    simulator/
+      density.ts
+      gates.ts
+      measurement.ts
+      simulator.ts
+      simulator.test.ts
+  presets/
+    teleportation.ts
+  stereo/
+    BlochSphereStereo.tsx
+    CorrelationMatrixStereo.tsx
+  store/
+    useAppStore.ts
+  styles/
+    app.css
+
+scripts/
+  verify-canvas.mjs
+```
+
+---
+
+## Circuit Representation
+
+Implemented TypeScript model:
+
+```ts
 type GateName =
   | "id"
   | "x"
@@ -159,10 +315,12 @@ type GateName =
   | "cz"
   | "swap"
   | "measure";
+
 type ClassicalCondition = {
   register: string;
   value: number;
 };
+
 type GateOp = {
   id: string;
   name: GateName;
@@ -173,236 +331,272 @@ type GateOp = {
   clbits?: number[];
   condition?: ClassicalCondition;
 };
+
 type Circuit = {
   numQubits: number;
   numClbits: number;
   ops: GateOp[];
 };
+```
 
-⸻
+Notes:
 
-Execution Model
+- `cx` and `cz` use `controls[0]` and `targets[0]`.
+- `swap` uses `targets[0]` and `targets[1]`.
+- `measure` uses `targets[0]` and `clbits[0]`.
+- The current editor appends gates to the end of the operation list.
+- The current QASM parser supports one quantum register and one classical register.
 
-Execution SHALL be step-based.
+---
 
-Each step SHALL:
+## Execution Model
 
-1. apply one gate
-2. update statevector
-3. update classical bits
-4. store execution snapshot
-5. update visualization
+Execution is step-based.
 
-⸻
+Each step:
 
-Execution State
+1. optionally checks a classical condition
+2. applies one gate, or skips it if the condition does not match
+3. updates the exact statevector
+4. updates classical bits for measurement
+5. appends measurement records when applicable
+6. stores an immutable execution snapshot for visualization
 
+Execution state:
+
+```ts
 type MeasurementRecord = {
   qubit: number;
   clbit: number;
   value: 0 | 1;
   probability: number;
 };
+
 type ExecutionState = {
   step: number;
   statevector: Complex[];
   classicalBits: number[];
   measurementLog: MeasurementRecord[];
+  appliedOp?: GateOp;
 };
+```
 
-⸻
+The simulator state remains exact and discrete. The renderer may interpolate visual state between exact snapshots.
 
-OpenQASM Support
+---
 
-Supported Version
+## OpenQASM 2.0 Support
 
-* OpenQASM 2.0
+### Supported Version
 
-⸻
+- OpenQASM 2.0
 
-Supported Statements
+### Supported Registers
 
-Registers
-
+```qasm
 qreg q[3];
 creg c[2];
+```
 
-⸻
+The parser accepts custom register names, but only one quantum register and one classical register are supported.
 
-Single-Qubit Gates
+Initial simulator limits:
 
+- `qreg` size must be 1 to 8
+- `creg` size must be at least 1
+- invalid qubit/classical indexes are rejected
+
+### Supported Single-Qubit Gates
+
+```qasm
+id q[0];
 x q[0];
 y q[0];
 z q[0];
 h q[0];
 s q[0];
+sdg q[0];
 t q[0];
+tdg q[0];
 rx(pi/2) q[0];
 ry(pi/2) q[0];
 rz(pi/2) q[0];
+```
 
-⸻
+The editor palette currently exposes:
 
-Two-Qubit Gates
+- `h`, `x`, `y`, `z`, `s`, `t`
+- `rx`, `ry`, `rz`
 
+The parser and simulator also support `id`, `sdg`, and `tdg`.
+
+### Supported Two-Qubit Gates
+
+```qasm
 cx q[0], q[1];
 cz q[0], q[1];
 swap q[0], q[1];
+```
 
-⸻
+Validation rules:
 
-Measurement
+- `cx` and `cz` require distinct control and target qubits
+- `swap` requires two distinct target qubits
+- two-qubit gates require at least two qubits
 
+### Measurement
+
+```qasm
 measure q[0] -> c[0];
+```
 
-⸻
+Measurement:
 
-Conditional Execution
+1. computes probabilities
+2. samples or uses a forced branch
+3. collapses the exact statevector
+4. updates the selected classical bit
+5. stores a measurement log entry
 
+### Conditional Execution
+
+Supported form:
+
+```qasm
 if (c==1) x q[0];
+```
 
-⸻
+Conditions compare the full little-endian classical register integer:
 
-Circuit Editor
+```txt
+value = c0 + 2*c1 + 4*c2 + ...
+```
 
-The editor SHALL support:
+Only equality against the full classical register is implemented.
 
-* add gate
-* delete gate
-* move gate
-* drag-and-drop editing
-* parameter editing
-* OpenQASM import/export
-* keyboard shortcuts
+---
 
-⸻
+## Circuit Editor
 
-Circuit Layout
+### Implemented
 
-* horizontal axis: timestep
-* vertical axis: qubit line
+- gate palette
+- target qubit selector
+- control qubit selector
+- measurement branch selector
+- append selected gate
+- delete existing gate
+- select an execution step from the operation strip
+- OpenQASM import from textarea
+- OpenQASM export to textarea
+- circuit timeline SVG
+- top-level transport controls
+
+### Not Yet Implemented
+
+- drag-and-drop editing
+- moving gates
+- inline parameter editing
+- keyboard shortcuts
+- undo/redo
+- multi-register editing
+
+### Circuit Layout
+
+- horizontal axis: timestep
+- vertical axis: qubit line
 
 Example:
 
-q0 ──H────●────────────
-          │
-q1 ───────X────M───────
+```txt
+q0 --H----*---------M----
+          |
+q1 -------X--------------
+```
 
-⸻
+---
 
-Simulation Engine
+## Simulation Engine
 
-Method
+Method:
 
-Statevector simulation.
+```txt
+statevector simulation
+|psi> in C^(2^n)
+```
 
-|ψ⟩ ∈ ℂ^(2^n)
+Initial performance target:
 
-⸻
+- 1 to 8 qubits
+- up to approximately 200 gates
+- real-time interaction for exhibition-scale examples
 
-Initial Performance Target
+The current simulator prioritizes clarity and correctness over large-scale performance.
 
-* 1–8 qubits
-* ≤ 200 gates
-* real-time interaction
+---
 
-⸻
+## Reduced Density Matrices And Bloch Vectors
 
-Measurement
+### Single-Qubit Reduction
 
-Measurement SHALL:
+For qubit `i`:
 
-1. compute probabilities
-2. sample outcomes
-3. collapse statevector
-4. update classical registers
-5. store measurement logs
+```txt
+rho_i = Tr_not_i(|psi><psi|)
+```
 
-⸻
+### Bloch Vector
 
-Reduced Density Matrix
+```txt
+r_x = Tr(rho X)
+r_y = Tr(rho Y)
+r_z = Tr(rho Z)
+purity = (1 + |r|^2) / 2
+```
 
-Single-Qubit Reduction
+### Two-Qubit Reduction
 
-For qubit i:
+For qubits `i` and `j`:
 
-[
-\rho_i = \mathrm{Tr}_{\bar{i}} |\psi\rangle\langle\psi|
-]
+```txt
+rho_ij = Tr_not_ij(|psi><psi|)
+```
 
-⸻
+The implementation preserves the requested qubit order in the reduced two-qubit basis.
 
-Bloch Vector
+### Correlation Matrix
 
-[
-r_x = \mathrm{Tr}(\rho X)
-]
-
-[
-r_y = \mathrm{Tr}(\rho Y)
-]
-
-[
-r_z = \mathrm{Tr}(\rho Z)
-]
-
-⸻
-
-Two-Qubit Reduction
-
-[
-\rho_{ij}=\mathrm{Tr}_{\overline{ij}}|\psi\rangle\langle\psi|
-]
-
-⸻
-
-Correlation Matrix
-
-[
-C_{\alpha\beta}=\mathrm{Tr}(\rho_{ij}\sigma_\alpha\otimes\sigma_\beta)
-]
+```txt
+C_ab = Tr(rho_ij sigma_a tensor sigma_b)
+```
 
 where:
 
-α, β ∈ {x, y, z}
+```txt
+a, b in {x, y, z}
+```
 
-⸻
+The UI currently displays the 3x3 correlation matrix for `q0/q1` when the circuit has at least two qubits.
 
-Visualization
+---
 
-Single-Qubit View
+## Visualization
 
-The renderer SHALL display:
+### Bloch Sphere View
 
-* stereoscopic Bloch sphere
-* Bloch vector
-* purity indication
-* optional trajectory history
+The renderer displays:
 
-⸻
+- one Bloch sphere per qubit
+- semi-transparent sphere surface
+- latitude lines
+- longitude lines
+- three reference axes
+- animated Bloch vector
+- purity label
 
-Bloch Sphere Grid
+Grid defaults:
 
-Bloch spheres SHALL display faint globe-like grids.
-
-The grid SHALL include:
-
-* latitude lines
-* longitude lines
-
-⸻
-
-Grid Rendering Requirements
-
-* thin lines
-* semi-transparent rendering
-* unobtrusive appearance
-* configurable visibility
-
-⸻
-
-Grid Parameters
-
+```ts
 type BlochSphereGridOptions = {
   visible: boolean;
   latitudeCount: number;
@@ -410,388 +604,258 @@ type BlochSphereGridOptions = {
   opacity: number;
   lineWidth: number;
 };
+```
 
 Default values:
 
+```txt
 visible = true
 latitudeCount = 7
 longitudeCount = 12
 opacity = 0.18
 lineWidth = 1
+```
 
-⸻
+### Animation
 
-Two-Qubit View
+Bloch vectors move continuously between execution snapshots.
 
-The renderer SHALL display:
+Current transition duration:
 
-* Bloch sphere for qubit A
-* Bloch sphere for qubit B
-* 3×3 correlation matrix
-* optional entanglement indicator
-
-⸻
-
-Animated Step Transitions
-
-Bloch vectors SHALL move continuously between execution steps.
-
-⸻
-
-Animation Requirements
-
-* smooth interpolation
-* configurable duration
-* interruptible transitions
-* next/previous support
-* autoplay support
-
-Default duration:
-
+```txt
 400 ms
+```
 
-⸻
+Interpolation:
 
-Bloch Vector Interpolation
+```txt
+r(t) = (1 - s(t)) r0 + s(t) r1
+s(t) = 3t^2 - 2t^3
+```
 
-[
-\mathbf{r}(t)=(1-s(t))\mathbf{r}_0+s(t)\mathbf{r}_1
-]
+Mixed-state vectors are not normalized during interpolation.
 
-with:
+### Camera Interaction
 
-[
-s(t)=3t^2-2t^3
-]
+Implemented camera behavior:
 
-⸻
+- pointer drag changes yaw and pitch velocity
+- yaw and pitch use damping
+- pitch is clamped for comfort
+- wheel changes camera radius
+- camera always looks at the scene origin
 
-Mixed-State Animation
+### Measurement Visualization
 
-Mixed-state Bloch-vector length SHALL interpolate continuously.
+Measurement collapse is represented by smooth visual interpolation between exact pre-measurement and post-measurement snapshots.
 
-Vectors SHALL NOT be normalized during interpolation.
+The exact simulator state is not modified for visual interpolation.
 
-⸻
+---
 
-Correlation Matrix Animation
+## Display Modes
 
-[
-C_{\alpha\beta}(t)=(1-s(t))C_{\alpha\beta}^{(0)}+s(t)C_{\alpha\beta}^{(1)}
-]
+### Standard 2D Mode
 
-⸻
+2D mode supports:
 
-Measurement Visualization
+- vivid gate colors
+- colored Bloch vectors
+- colorful but restrained correlation matrix cells
+- full brightness rendering
 
-Measurement collapse SHALL still animate continuously for visualization purposes.
+### Red-Green/Cyan Stereo Mode
 
-The UI SHOULD indicate that this is visual interpolation rather than physical time evolution.
+Stereo mode uses Three.js `AnaglyphEffect`.
 
-⸻
+The UI exposes:
 
-Gate-Aware Animation
+- stereo on/off toggle
 
-The renderer MAY animate single-qubit gates using geometric Bloch-sphere rotations.
+Current implementation details:
 
-Examples:
+- no eye-separation UI yet
+- no convergence-distance UI yet
+- canvas is visually adjusted with reduced saturation and stable contrast
 
-* rx
-* ry
-* rz
-* x
-* y
-* z
+The renderer must remain readable in both 2D and anaglyph mode.
 
-Initial implementation MAY use linear interpolation.
+---
 
-⸻
+## Teleportation Preset
 
-Display Modes
+The current preset prepares an input `|+>` state on `q0`, creates a Bell pair on `q1/q2`, performs Bell measurement on `q0/q1`, and conditionally reconstructs the state on `q2`.
 
-The renderer SHALL support:
+Implemented circuit:
 
-1. Standard 2D mode
-2. Red-green stereoscopic mode
-
-⸻
-
-2D Mode
-
-2D mode SHALL support:
-
-* bright colors
-* vivid gate coloring
-* colorful Bloch vectors
-* colorful correlation matrices
-
-⸻
-
-Red-Green Stereo Mode
-
-Anaglyph stereoscopic mode SHALL support:
-
-* left-eye red rendering
-* right-eye green/cyan rendering
-* adjustable eye separation
-* depth-enhanced rendering
-
-⸻
-
-Stereo Mode Switching
-
-Users SHALL be able to switch dynamically between:
-
-* 2D mode
-* stereoscopic mode
-
-without restarting the application.
-
-⸻
-
-Stereo Rendering Settings
-
-type DisplayMode =
-  | "2d"
-  | "anaglyph-red-green";
-type StereoSettings = {
-  enabled: boolean;
-  eyeSeparation: number;
-  convergenceDistance: number;
-  preserveBrightness: boolean;
-};
-
-⸻
-
-Stereo Rendering Adaptation
-
-When stereo mode is enabled:
-
-* saturation MAY be reduced
-* contrast MAY be adjusted
-* grid opacity MAY be reduced
-
-The renderer SHALL preserve readability.
-
-⸻
-
-Trackball Interaction
-
-The system SHALL optimize interaction for:
-
-* Elecom HUGE PLUS trackball
-
-⸻
-
-Trackball Usage
-
-The trackball SHALL support:
-
-* camera rotation
-* gate selection
-* drag-and-drop editing
-* timeline scrubbing
-* Bloch sphere manipulation
-
-⸻
-
-Recommended Bindings
-
-Left Click:
-  select / place gate
-Right Click:
-  delete gate / context menu
-Trackball Movement:
-  rotate camera
-Wheel:
-  zoom
-
-⸻
-
-Stream Deck Integration
-
-The system SHALL support:
-
-* Elgato Stream Deck MK.2
-
-⸻
-
-Stream Deck Functions
-
-The Stream Deck SHALL support:
-
-* gate insertion
-* execution control
-* visualization toggles
-* teleportation preset loading
-* camera reset
-* stereo-mode switching
-
-⸻
-
-Default Stream Deck Layout
-
-+-------------------------------+
-| Undo | Redo | Reset | Run     |
-| Prev | Next | Auto  | Pause   |
-| H    | X    | Y     | Z       |
-| CX   | M    | QASM  | Stereo  |
-+-------------------------------+
-
-⸻
-
-Quantum Teleportation Preset
-
-The system SHALL provide an educational teleportation demonstration.
-
-⸻
-
-Teleportation Circuit
-
+```qasm
 OPENQASM 2.0;
 include "qelib1.inc";
 qreg q[3];
 creg c[2];
+h q[0];
 h q[1];
 cx q[1], q[2];
 cx q[0], q[1];
 h q[0];
 measure q[0] -> c[0];
 measure q[1] -> c[1];
-if (c==1) x q[2];
-if (c==2) z q[2];
+if (c==1) z q[2];
+if (c==2) x q[2];
+if (c==3) z q[2];
+if (c==3) x q[2];
+```
 
-⸻
+Branch interpretation:
 
-Teleportation Visualization
+```txt
+c value = c0 + 2*c1
+00 -> no correction
+01 -> Z correction
+10 -> X correction
+11 -> Z then X correction
+```
 
-The visualization SHALL display:
+Measurement modes:
 
-1. input state
-2. Bell-pair generation
-3. entanglement correlations
-4. measurement collapse
-5. classical communication
-6. correction operations
-7. reconstructed state
+- random sampling
+- forced branch: `00`, `01`, `10`, `11`
 
-⸻
+The current visualization shows state evolution, collapse, classical bits, correlations, and reconstructed target-state Bloch vector. It does not yet show explicit classical communication arrows or a dedicated teleportation narrative panel.
 
-Measurement Modes
+---
 
-Random Mode
+## Stream Deck Plan
 
-Measurement outcomes sampled probabilistically.
+Stream Deck hardware integration is not implemented yet.
 
-⸻
+Target actions:
 
-Forced Branch Mode
+- reset
+- previous step
+- next step
+- autoplay/pause
+- stereo toggle
+- teleportation preset
+- gate selection
+- gate insertion
+- camera reset
 
-User-selectable branches:
+Suggested future 15-key layout:
 
-* 00
-* 01
-* 10
-* 11
+```txt
++-------------------------------+
+| Undo | Redo | Reset | Run     |
+| Prev | Next | Auto  | Pause   |
+| H    | X    | Y     | Z       |
+| CX   | M    | QASM  | Stereo  |
++-------------------------------+
+```
 
-⸻
+---
 
-File Structure
+## Testing And Verification
 
-src/
-  circuit/
-    CircuitEditor.tsx
-    CircuitCanvas.tsx
-    GatePalette.tsx
-    qasm2/
-      parser.ts
-      exporter.ts
-    simulator/
-      simulator.ts
-      gates.ts
-      measurement.ts
-      density.ts
-  stereo/
-    BlochSphereStereo.tsx
-    CorrelationMatrixStereo.tsx
-    StereoRenderer.tsx
-  presets/
-    teleportation.qasm
+### Unit Tests
 
-⸻
+Vitest tests currently cover:
 
-Performance Targets
+- Bell-state reduced Bloch vectors and correlations
+- measurement collapse and classical bit updates
+- teleportation correction branches
+- QASM qreg size validation
+- QASM index validation
+- QASM conditional register validation
 
-The system SHOULD maintain:
+Run:
 
-* 60 FPS in 2D mode
-* ≥ 45 FPS in stereo mode
+```sh
+npm run test
+```
+
+### Build Verification
+
+Run:
+
+```sh
+npm run build
+```
+
+### Visual Canvas Verification
+
+The Playwright script checks that the WebGL canvas renders nonblank desktop and mobile screenshots.
+
+Run:
+
+```sh
+npx playwright install chromium
+node scripts/verify-canvas.mjs
+```
+
+---
+
+## Performance Targets
+
+The system should maintain:
+
+- 60 FPS in 2D mode
+- at least 45 FPS in stereo mode
 
 for:
 
-* ≤ 8 qubits
-* ≤ 200 gates
+- 1 to 8 qubits
+- up to approximately 200 gates
 
-⸻
+Performance guidance:
 
-Future Extensions
+- avoid recreating geometries every animation frame
+- keep exact simulation separate from visualization interpolation
+- avoid unnecessary React rerenders in the render loop
+- keep object allocation out of hot frame paths where practical
 
-Possible future extensions:
+---
 
-* OpenQASM 3
-* GPU acceleration
-* tensor-network backend
-* noise simulation
-* WebXR support
-* quantum error correction visualization
+## Future Extensions
 
-⸻
+Potential future work:
 
-Development Phases
+- drag-and-drop circuit editing
+- parameter editor for rotation gates
+- keyboard shortcuts
+- undo/redo
+- OpenQASM 3
+- custom gate definitions
+- multiple register support
+- richer reduced density matrix UI
+- entanglement indicators
+- trajectory history
+- gate-aware Bloch rotations
+- Stream Deck SDK integration
+- camera reset and camera presets
+- configurable stereo parameters
+- GPU acceleration
+- tensor-network backend
+- noise simulation
+- WebXR
+- quantum error correction visualization
 
-Phase 1
+---
 
-* circuit IR
-* circuit rendering
-* statevector simulator
-* Bloch sphere rendering
+## Success Criteria
 
-⸻
+The project is successful when users can:
 
-Phase 2
+1. import or build small quantum circuits interactively
+2. step through execution without losing visual continuity
+3. understand single-qubit Bloch vectors and mixed-state purity
+4. visually grasp basic entanglement through reduced Bloch vectors and correlations
+5. follow teleportation step by step
+6. use stereoscopic mode comfortably
+7. operate the system in a browser with exhibition-friendly controls
 
-* OpenQASM parser/exporter
-* density matrix reduction
-* step execution
+The project is not judged primarily by:
 
-⸻
-
-Phase 3
-
-* animation system
-* teleportation visualization
-* measurement visualization
-
-⸻
-
-Phase 4
-
-* stereoscopic optimization
-* Stream Deck optimization
-* exhibition hardening
-
-⸻
-
-Success Criteria
-
-The project SHALL be considered successful if:
-
-1. circuits can be edited interactively
-2. OpenQASM import/export works
-3. teleportation becomes visually understandable
-4. Bloch vectors animate smoothly
-5. entanglement becomes visually intuitive
-6. stereoscopic rendering works reliably
-7. the system operates interactively in a browser
-
-
+- simulator scale
+- benchmark performance
+- feature count
+- production quantum SDK completeness

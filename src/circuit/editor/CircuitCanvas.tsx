@@ -43,27 +43,23 @@ export function CircuitCanvas({ circuit, currentStep, onStepSelect, onDeleteGate
       </svg>
       <div className="op-strip">
         {circuit.ops.map((op, index) => (
-          <button
-            type="button"
+          <div
             key={op.id}
             className={currentStep === index + 1 ? "op-chip is-current" : "op-chip"}
-            onClick={() => onStepSelect(index + 1)}
           >
-            <span>{index + 1}</span>
-            {formatGate(op)}
-            <Trash2
-              aria-label="Delete gate"
-              role="button"
-              tabIndex={0}
-              onClick={(event) => {
-                event.stopPropagation();
-                onDeleteGate(op.id);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") onDeleteGate(op.id);
-              }}
-            />
-          </button>
+            <button type="button" className="op-select" onClick={() => onStepSelect(index + 1)}>
+              <span>{index + 1}</span>
+              {formatGate(op)}
+            </button>
+            <button
+              type="button"
+              className="delete-op"
+              aria-label={`Delete ${formatGate(op)}`}
+              onClick={() => onDeleteGate(op.id)}
+            >
+              <Trash2 aria-hidden="true" />
+            </button>
+          </div>
         ))}
       </div>
     </div>

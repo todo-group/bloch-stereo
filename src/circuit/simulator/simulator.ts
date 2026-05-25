@@ -15,6 +15,7 @@ export function initialStatevector(numQubits: number): Complex[] {
 }
 
 export function executeCircuit(circuit: Circuit, options: ExecutionOptions = {}): ExecutionState[] {
+  validateCircuitForExecution(circuit);
   let statevector = initialStatevector(circuit.numQubits);
   let classicalBits = Array.from({ length: circuit.numClbits }, () => 0);
   let measurementIndex = 0;
@@ -48,9 +49,9 @@ export function executeCircuit(circuit: Circuit, options: ExecutionOptions = {})
         singleQubitMatrix(op.name, op.params),
       );
     } else if (op.name === "cx") {
-      statevector = applyControlledX(statevector, op.controls?.[0] ?? op.targets[0], op.targets[0]);
+      statevector = applyControlledX(statevector, requiredControl(op), op.targets[0]);
     } else if (op.name === "cz") {
-      statevector = applyControlledZ(statevector, op.controls?.[0] ?? op.targets[0], op.targets[0]);
+      statevector = applyControlledZ(statevector, requiredControl(op), op.targets[0]);
     } else if (op.name === "swap") {
       statevector = applySwap(statevector, op.targets[0], op.targets[1]);
     } else if (op.name === "measure") {
@@ -78,6 +79,38 @@ export function executeCircuit(circuit: Circuit, options: ExecutionOptions = {})
   });
 
   return snapshots;
+}
+
+function validateCircuitForExecution(circuit: Circuit): void {
+  if (!Number.isInteger(circuit.numQubits) || circuit.numQubits < 1 || circuit.numQubits > 8) {
+    throw new Error(`Circuit must contain 1 to 8 qubits; got ${circuit.numQubits}.`);
+  }
+  if (!Number.isInteger(circuit.numClbits) || circuit.numClbits < 1) {
+    throw new Error(`Circuit must contain at least 1 classical bit; got ${circuit.numClbits}.`);
+  }
+  circuit.ops.forEach((op) => {
+    op.targets.forEach((target) => assertIndex(target, circuit.numQubits, "qubit"));
+    op.controls?.forEach((control) => assertIndex(control, circuit.numQubits, "qubit"));
+    op.clbits?.forEach((clbit) => assertIndex(clbit, circuit.numClbits, "classical bit"));
+    if ((op.name === "cx" || op.name === "cz") && requiredControl(op) === op.targets[0]) {
+      throw new Error(`${op.name.toUpperCase()} control and target must be different.`);
+    }
+    if (op.name === "swap" && op.targets[0] === op.targets[1]) {
+      throw new Error("SWAP targets must be different.");
+    }
+  });
+}
+
+function requiredControl(op: GateOp): number {
+  const control = op.controls?.[0];
+  if (control === undefined) throw new Error(`${op.name.toUpperCase()} requires a control qubit.`);
+  return control;
+}
+
+function assertIndex(index: number, size: number, label: string): void {
+  if (!Number.isInteger(index) || index < 0 || index >= size) {
+    throw new Error(`Invalid ${label} index ${index}; valid range is 0..${size - 1}.`);
+  }
 }
 
 function shouldApplyCondition(op: GateOp, classicalBits: number[]): boolean {

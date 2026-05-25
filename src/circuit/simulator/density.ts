@@ -69,14 +69,11 @@ export function twoQubitDensityMatrix(
   second: number,
 ): Matrix {
   const rho = Array.from({ length: 4 }, () => Array.from({ length: 4 }, () => complex(0)));
-  const low = Math.min(first, second);
-  const high = Math.max(first, second);
-
   for (let row = 0; row < statevector.length; row += 1) {
     for (let col = 0; col < statevector.length; col += 1) {
       if (sameEnvironment(row, col, numQubits, first, second)) {
-        const rowPair = pairIndex(row, low, high);
-        const colPair = pairIndex(col, low, high);
+        const rowPair = pairIndex(row, first, second);
+        const colPair = pairIndex(col, first, second);
         rho[rowPair][colPair] = add(rho[rowPair][colPair], mul(statevector[row], conj(statevector[col])));
       }
     }
@@ -101,10 +98,10 @@ export function correlationMatrix(statevector: Complex[], numQubits: number, fir
   );
 }
 
-function pairIndex(basis: number, low: number, high: number): number {
-  const lowBit = (basis >> low) & 1;
-  const highBit = (basis >> high) & 1;
-  return lowBit + (highBit << 1);
+function pairIndex(basis: number, first: number, second: number): number {
+  const firstBit = (basis >> first) & 1;
+  const secondBit = (basis >> second) & 1;
+  return (firstBit << 1) + secondBit;
 }
 
 function sameEnvironment(row: number, col: number, numQubits: number, first: number, second: number): boolean {

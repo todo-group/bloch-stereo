@@ -244,22 +244,17 @@ function createSphereRig(index: number, total: number): SphereRig {
 
 function createGrid(): THREE.Group {
   const group = new THREE.Group();
-  const material = new THREE.LineBasicMaterial({
-    color: 0xd8e0ff,
-    transparent: true,
-    opacity: DEFAULT_GRID_OPTIONS.opacity,
-  });
 
   for (let lat = 1; lat <= DEFAULT_GRID_OPTIONS.latitudeCount; lat += 1) {
     const phi = (lat / (DEFAULT_GRID_OPTIONS.latitudeCount + 1)) * Math.PI;
     const y = Math.cos(phi);
     const radius = Math.sin(phi);
-    group.add(createLineLoop(makeCircle(radius, y, "latitude"), material));
+    group.add(createLineLoop(makeCircle(radius, y, "latitude")));
   }
 
   for (let lon = 0; lon < DEFAULT_GRID_OPTIONS.longitudeCount; lon += 1) {
     const angle = (lon / DEFAULT_GRID_OPTIONS.longitudeCount) * Math.PI;
-    const line = createLineLoop(makeCircle(1, 0, "longitude"), material);
+    const line = createLineLoop(makeCircle(1, 0, "longitude"));
     line.rotation.y = angle;
     group.add(line);
   }
@@ -294,8 +289,15 @@ function makeCircle(radius: number, y: number, kind: "latitude" | "longitude"): 
   return points;
 }
 
-function createLineLoop(points: THREE.Vector3[], material: THREE.LineBasicMaterial): THREE.Line {
-  return new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), material.clone());
+function createLineLoop(points: THREE.Vector3[]): THREE.Line {
+  return new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(points),
+    new THREE.LineBasicMaterial({
+      color: 0xd8e0ff,
+      transparent: true,
+      opacity: DEFAULT_GRID_OPTIONS.opacity,
+    }),
+  );
 }
 
 function toVector3(vector: BlochVector): THREE.Vector3 {

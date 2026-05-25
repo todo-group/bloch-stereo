@@ -1,5 +1,7 @@
 # Bloch Stereo Quantum Circuit Editor
 
+[English](README.md) | [日本語](README-ja.md)
+
 Interactive stereoscopic visualization environment for quantum circuits, Bloch spheres, reduced density matrices, and entanglement.
 Designed for:
 - science exhibitions
@@ -432,7 +434,7 @@ feel spatial, continuous, and intuitive.
 
 License
 
-MIT License
+[MIT License](LICENSE)
 
 ⸻
 
@@ -444,4 +446,3 @@ Inspired by:
 * quantum education software
 * stereoscopic visualization systems
 * interactive science museum exhibits
-
