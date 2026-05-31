@@ -20,12 +20,14 @@ body {
 }
 
 button,
+input,
 select,
 textarea {
   font: inherit;
 }
 
 button,
+input,
 select {
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: #182033;
@@ -61,6 +63,13 @@ select {
   padding: 0 12px;
 }
 
+input[type="number"] {
+  width: 86px;
+  min-height: 44px;
+  border-radius: 8px;
+  padding: 0 10px;
+}
+
 .app-shell {
   display: flex;
   min-height: 100vh;
@@ -69,7 +78,7 @@ select {
 
 .topbar {
   display: grid;
-  grid-template-columns: minmax(180px, 280px) 1fr auto;
+  grid-template-columns: minmax(170px, 220px) minmax(300px, 0.8fr) minmax(230px, 0.55fr) minmax(250px, 0.7fr) auto;
   align-items: center;
   gap: 16px;
   padding: 14px 18px;
@@ -108,10 +117,58 @@ select {
   gap: 8px;
 }
 
+.preset-controls {
+  display: flex;
+  justify-content: center;
+}
+
+.preset-controls label {
+  display: grid;
+  width: min(100%, 230px);
+  gap: 4px;
+  color: #9fb0c9;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.preset-controls select {
+  width: 100%;
+  min-height: 40px;
+  font-size: 0.86rem;
+}
+
 .transport .is-active,
 .primary-action {
   border-color: rgba(125, 211, 252, 0.5);
   background: #0e7490;
+}
+
+.stereo-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(112px, 1fr));
+  gap: 8px 12px;
+}
+
+.stereo-controls label {
+  display: grid;
+  grid-template-columns: 42px minmax(76px, 1fr) 42px;
+  align-items: center;
+  gap: 7px;
+  color: #9fb0c9;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.stereo-controls input {
+  width: 100%;
+  accent-color: #7dd3fc;
+}
+
+.stereo-controls output {
+  color: #f6f7fb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.72rem;
+  text-align: right;
 }
 
 .step-counter {
@@ -130,7 +187,7 @@ select {
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(420px, 0.95fr) minmax(440px, 1.05fr);
+  grid-template-columns: minmax(320px, 0.62fr) minmax(620px, 1.38fr);
   min-height: 0;
   flex: 1;
 }
@@ -143,7 +200,8 @@ select {
 
 .editor-panel {
   display: grid;
-  grid-template-rows: auto minmax(220px, 0.9fr) minmax(260px, 1fr);
+  position: relative;
+  grid-template-rows: auto minmax(300px, 1fr) auto;
   border-right: 1px solid rgba(255, 255, 255, 0.1);
   background: #101827;
 }
@@ -210,6 +268,14 @@ select {
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: #f8fafc;
   color: #152033;
+}
+
+.circuit-summary {
+  padding: 10px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: #9fb0c9;
+  font-size: 0.84rem;
+  font-weight: 800;
 }
 
 .wire {
@@ -327,12 +393,28 @@ select {
   background: #fde68a;
 }
 
+.qasm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(2, 6, 23, 0.72);
+}
+
 .qasm-panel {
   display: grid;
+  width: min(920px, 94vw);
+  height: min(720px, 86vh);
   min-height: 0;
   grid-template-rows: auto 1fr auto;
   padding: 12px;
   gap: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: #101827;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.42);
 }
 
 .qasm-actions {
@@ -399,6 +481,18 @@ select {
   filter: saturate(0.82) contrast(1.05);
 }
 
+.camera-reset {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  min-height: 40px;
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(16, 24, 39, 0.82);
+  backdrop-filter: blur(8px);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
 .sphere-labels {
   pointer-events: none;
   position: absolute;
@@ -421,11 +515,54 @@ select {
 
 .visual-readouts {
   display: grid;
-  grid-template-columns: minmax(180px, 0.65fr) minmax(260px, 1fr);
+  grid-template-columns: minmax(220px, 0.7fr) minmax(160px, 0.45fr) minmax(260px, 1fr);
   gap: 14px;
   padding: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   background: #101827;
+}
+
+.view-controls {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.view-controls > div {
+  display: grid;
+  gap: 6px;
+}
+
+.view-controls span {
+  color: #9fb0c9;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.toggle-row,
+.pair-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.toggle-row button {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.toggle-row .is-active {
+  border-color: rgba(251, 191, 36, 0.75);
+  background: #92400e;
+}
+
+.pair-controls select {
+  min-height: 34px;
+  padding: 0 9px;
+  font-size: 0.8rem;
+  font-weight: 800;
 }
 
 .state-strip {
@@ -501,6 +638,15 @@ select {
     text-align: left;
   }
 
+  .preset-controls,
+  .transport {
+    justify-content: flex-start;
+  }
+
+  .stereo-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .editor-panel {
     border-right: 0;
   }
@@ -509,6 +655,10 @@ select {
 @media (max-width: 560px) {
   .topbar {
     padding: 12px;
+  }
+
+  .stereo-controls {
+    grid-template-columns: 1fr;
   }
 
   .transport {

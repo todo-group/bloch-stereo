@@ -11,6 +11,9 @@ export type GateName =
   | "rx"
   | "ry"
   | "rz"
+  | "depolarize"
+  | "dephase"
+  | "ampdamp"
   | "cx"
   | "cz"
   | "swap"
@@ -53,10 +56,13 @@ export type MeasurementRecord = {
 export type ExecutionState = {
   step: number;
   statevector: Complex[];
+  densityMatrix?: Complex[][];
   classicalBits: number[];
   measurementLog: MeasurementRecord[];
   appliedOp?: GateOp;
 };
+
+export type SimulationBackend = "statevector" | "density-matrix";
 
 export type BlochVector = {
   x: number;
@@ -71,6 +77,8 @@ export type StereoSettings = {
   enabled: boolean;
   eyeSeparation: number;
   convergenceDistance: number;
+  redGain: number;
+  cyanGain: number;
   preserveBrightness: boolean;
 };
 

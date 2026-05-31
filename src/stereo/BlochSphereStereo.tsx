@@ -1,18 +1,27 @@
 import { useEffect, useMemo, useRef } from "react";
+import { RotateCcw } from "lucide-react";
 import * as THREE from "three";
-import { AnaglyphEffect } from "three/examples/jsm/effects/AnaglyphEffect.js";
-import type { BlochVector, DisplayMode } from "../circuit/types";
+import { AdjustableAnaglyphEffect } from "./AdjustableAnaglyphEffect";
+import type { BlochVector, DisplayMode, StereoSettings } from "../circuit/types";
 import { DEFAULT_GRID_OPTIONS } from "../circuit/types";
 
 type BlochSphereStereoProps = {
   vectors: BlochVector[];
+  labels: string[];
   displayMode: DisplayMode;
+  stereoSettings: StereoSettings;
   activeStep: number;
+};
+
+type VectorArrow = {
+  root: THREE.Group;
+  shaft: THREE.Mesh;
+  head: THREE.Mesh;
 };
 
 type SphereRig = {
   root: THREE.Group;
-  arrow: THREE.ArrowHelper;
+  arrow: VectorArrow;
   purityRing: THREE.Mesh;
 };
 
@@ -23,11 +32,14 @@ type AnimationState = {
 };
 
 const TRANSITION_MS = 400;
+const STANDARD_CAMERA_RADIUS = 6.2;
+const RESET_CAMERA_YAW = 0;
+const RESET_CAMERA_PITCH = 0;
 
-export function BlochSphereStereo({ vectors, displayMode, activeStep }: BlochSphereStereoProps) {
+export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings, activeStep }: BlochSphereStereoProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const effectRef = useRef<AnaglyphEffect | null>(null);
+  const effectRef = useRef<AdjustableAnaglyphEffect | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rigsRef = useRef<SphereRig[]>([]);
@@ -38,7 +50,15 @@ export function BlochSphereStereo({ vectors, displayMode, activeStep }: BlochSph
     to: vectors.map(toVector3),
   });
   const modeRef = useRef(displayMode);
-  const cameraMotion = useRef({ yaw: -0.55, pitch: 0.32, radius: 6.2, yawVelocity: 0, pitchVelocity: 0 });
+  const stereoSettingsRef = useRef(stereoSettings);
+  const cameraMotion = useRef({
+    yaw: RESET_CAMERA_YAW,
+    pitch: RESET_CAMERA_PITCH,
+    radius: STANDARD_CAMERA_RADIUS,
+    targetRadius: STANDARD_CAMERA_RADIUS,
+    yawVelocity: 0,
+    pitchVelocity: 0,
+  });
   const pointerRef = useRef({ dragging: false, x: 0, y: 0 });
 
   const targetVectors = useMemo(() => vectors.map(toVector3), [vectors]);
@@ -46,6 +66,10 @@ export function BlochSphereStereo({ vectors, displayMode, activeStep }: BlochSph
   useEffect(() => {
     modeRef.current = displayMode;
   }, [displayMode]);
+
+  useEffect(() => {
+    stereoSettingsRef.current = stereoSettings;
+  }, [stereoSettings]);
 
   useEffect(() => {
     animationRef.current = {
@@ -64,7 +88,7 @@ export function BlochSphereStereo({ vectors, displayMode, activeStep }: BlochSph
     renderer.setClearColor(0x0b1020, 1);
     mount.appendChild(renderer.domElement);
 
-    const effect = new AnaglyphEffect(renderer);
+    const effect = new AdjustableAnaglyphEffect(renderer);
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0b1020);
     const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
@@ -75,6 +99,7 @@ export function BlochSphereStereo({ vectors, displayMode, activeStep }: BlochSph
 
     const rigs = vectors.map((_, index) => createSphereRig(index, vectors.length));
     rigs.forEach((rig) => scene.add(rig.root));
+    scene.add(createFloorGrid(vectors.length));
 
     rendererRef.current = renderer;
     effectRef.current = effect;
@@ -110,7 +135,7 @@ export function BlochSphereStereo({ vectors, displayMode, activeStep }: BlochSph
     };
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
-      cameraMotion.current.radius = clamp(cameraMotion.current.radius + event.deltaY * 0.004, 3.8, 10);
+      cameraMotion.current.targetRadius = clamp(cameraMotion.current.targetRadius + event.deltaY * 0.004, 3.8, 12);
     };
 
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
@@ -127,6 +152,9 @@ export function BlochSphereStereo({ vectors, displayMode, activeStep }: BlochSph
       updateVectors(time);
       updateCamera(camera);
       if (modeRef.current === "anaglyph-red-green") {
+        effect.eyeSeparation = stereoSettingsRef.current.eyeSeparation;
+        effect.redGain = stereoSettingsRef.current.redGain;
+        effect.cyanGain = stereoSettingsRef.current.cyanGain;
         effect.render(scene, camera);
       } else {
         renderer.render(scene, camera);
@@ -144,12 +172,17 @@ export function BlochSphereStereo({ vectors, displayMode, activeStep }: BlochSph
       renderer.domElement.removeEventListener("wheel", onWheel);
       mount.removeChild(renderer.domElement);
       scene.traverse((object: THREE.Object3D) => {
-        if (object instanceof THREE.Mesh || object instanceof THREE.Line) {
+        if (object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.LineSegments) {
           object.geometry.dispose();
           const materials = Array.isArray(object.material) ? object.material : [object.material];
           materials.forEach((material: THREE.Material) => material.dispose());
+        } else if (object instanceof THREE.Sprite) {
+          const material = object.material;
+          material.map?.dispose();
+          material.dispose();
         }
       });
+      effect.dispose();
       renderer.dispose();
     };
   }, [vectors.length]);
@@ -157,15 +190,31 @@ export function BlochSphereStereo({ vectors, displayMode, activeStep }: BlochSph
   return (
     <div className={displayMode === "anaglyph-red-green" ? "bloch-stage is-stereo" : "bloch-stage"}>
       <div ref={mountRef} className="bloch-canvas" />
+      <button type="button" className="camera-reset" onClick={resetCameraView} title="Reset Bloch sphere view">
+        <RotateCcw aria-hidden="true" />
+        View
+      </button>
       <div className="sphere-labels" aria-hidden="true">
         {vectors.map((vector, index) => (
           <span key={index}>
-            q{index} · purity {vector.purity.toFixed(2)}
+            {labels[index] ?? `q${index}`} · purity {vector.purity.toFixed(2)}
           </span>
         ))}
       </div>
     </div>
   );
+
+  function resetCameraView() {
+    cameraMotion.current = {
+      yaw: RESET_CAMERA_YAW,
+      pitch: RESET_CAMERA_PITCH,
+      radius: cameraMotion.current.radius,
+      targetRadius: STANDARD_CAMERA_RADIUS,
+      yawVelocity: 0,
+      pitchVelocity: 0,
+    };
+    pointerRef.current.dragging = false;
+  }
 
   function updateVectors(time: number) {
     const animation = animationRef.current;
@@ -180,8 +229,7 @@ export function BlochSphereStereo({ vectors, displayMode, activeStep }: BlochSph
       const vector = current[index] ?? new THREE.Vector3(0, 0, 1);
       const length = Math.max(0.001, vector.length());
       const direction = length > 0.001 ? vector.clone().normalize() : new THREE.Vector3(0, 0, 1);
-      rig.arrow.setDirection(direction);
-      rig.arrow.setLength(length * 0.92, 0.14, 0.08);
+      updateVectorArrow(rig.arrow, direction, length * 0.94);
       const target = targetVectors[index];
       rig.purityRing.scale.setScalar(0.74 + 0.24 * Math.sqrt(target?.lengthSq() ?? 1));
     });
@@ -189,15 +237,24 @@ export function BlochSphereStereo({ vectors, displayMode, activeStep }: BlochSph
 
   function updateCamera(camera: THREE.PerspectiveCamera) {
     const motion = cameraMotion.current;
+    if (modeRef.current === "anaglyph-red-green") {
+      const stereoRadius = clamp(4.6 + vectors.length * 0.35, 4.8, 8.2);
+      if (motion.targetRadius > stereoRadius) {
+        motion.targetRadius += (stereoRadius - motion.targetRadius) * 0.035;
+      }
+    }
+    motion.radius += (motion.targetRadius - motion.radius) * 0.08;
     motion.yaw += motion.yawVelocity;
     motion.pitch = clamp(motion.pitch + motion.pitchVelocity, -0.9, 0.9);
     motion.yawVelocity *= pointerRef.current.dragging ? 0.82 : 0.94;
     motion.pitchVelocity *= pointerRef.current.dragging ? 0.82 : 0.94;
+    camera.up.set(0, 0, 1);
     camera.position.set(
       Math.sin(motion.yaw) * Math.cos(motion.pitch) * motion.radius,
+      -Math.cos(motion.yaw) * Math.cos(motion.pitch) * motion.radius,
       Math.sin(motion.pitch) * motion.radius,
-      Math.cos(motion.yaw) * Math.cos(motion.pitch) * motion.radius,
     );
+    camera.focus = modeRef.current === "anaglyph-red-green" ? stereoSettingsRef.current.convergenceDistance : motion.radius;
     camera.lookAt(0, 0, 0);
   }
 }
@@ -221,16 +278,12 @@ function createSphereRig(index: number, total: number): SphereRig {
   root.add(sphere);
   root.add(createGrid());
   root.add(createAxes());
+  root.add(createDepthGuides());
+  root.add(createBoundingCube());
+  root.add(createAxisLabels());
 
-  const arrow = new THREE.ArrowHelper(
-    new THREE.Vector3(0, 0, 1),
-    new THREE.Vector3(0, 0, 0),
-    0.92,
-    index % 2 === 0 ? 0xffd166 : 0x60d394,
-    0.14,
-    0.08,
-  );
-  root.add(arrow);
+  const arrow = createVectorArrow(index % 2 === 0 ? 0xffdc73 : 0x60d394);
+  root.add(arrow.root);
 
   const purityRing = new THREE.Mesh(
     new THREE.TorusGeometry(1.02, 0.008, 8, 96),
@@ -240,6 +293,157 @@ function createSphereRig(index: number, total: number): SphereRig {
   root.add(purityRing);
 
   return { root, arrow, purityRing };
+}
+
+function createVectorArrow(color: number): VectorArrow {
+  const root = new THREE.Group();
+  const material = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.98,
+    depthWrite: false,
+    wireframe: true,
+  });
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 1, 18, 3), material);
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.28, 24, 3), material);
+  root.add(shaft, head);
+  updateVectorArrow({ root, shaft, head }, new THREE.Vector3(0, 0, 1), 0.94);
+  return { root, shaft, head };
+}
+
+function updateVectorArrow(arrow: VectorArrow, direction: THREE.Vector3, length: number) {
+  const headLength = Math.min(0.28, Math.max(0.18, length * 0.28));
+  const shaftLength = Math.max(0.001, length - headLength);
+  arrow.root.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+  arrow.shaft.scale.set(1, shaftLength, 1);
+  arrow.shaft.position.set(0, shaftLength / 2, 0);
+  arrow.head.position.set(0, shaftLength + headLength / 2, 0);
+}
+
+function createDepthGuides(): THREE.Group {
+  const group = new THREE.Group();
+  const guideMaterial = new THREE.LineBasicMaterial({
+    color: 0x9fb4ff,
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false,
+  });
+
+  [-0.66, -0.33, 0.33, 0.66].forEach((z) => {
+    const radius = Math.sqrt(1 - z * z);
+    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(makeCircle(radius, z, "longitude")), guideMaterial));
+  });
+
+  const depthLine = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, -1.22),
+      new THREE.Vector3(0, 0, 1.22),
+    ]),
+    new THREE.LineBasicMaterial({ color: 0xf6f7fb, transparent: true, opacity: 0.12 }),
+  );
+  group.add(depthLine);
+  return group;
+}
+
+function createBoundingCube(): THREE.LineSegments {
+  const geometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(2.36, 2.36, 2.36));
+  const material = new THREE.LineBasicMaterial({
+    color: 0xe8ecf4,
+    transparent: true,
+    opacity: 0.16,
+    depthWrite: false,
+  });
+  return new THREE.LineSegments(geometry, material);
+}
+
+function createAxisLabels(): THREE.Group {
+  const group = new THREE.Group();
+  const offset = 1.48;
+  const labels: Array<{ text: string; position: THREE.Vector3; color: string }> = [
+    { text: "|0⟩", position: new THREE.Vector3(0, 0, offset), color: "#f6f7fb" },
+    { text: "|1⟩", position: new THREE.Vector3(0, 0, -offset), color: "#f6f7fb" },
+    { text: "|+⟩", position: new THREE.Vector3(offset, 0, 0), color: "#ffd166" },
+    { text: "|-⟩", position: new THREE.Vector3(-offset, 0, 0), color: "#ffd166" },
+    { text: "|i⟩", position: new THREE.Vector3(0, offset, 0), color: "#60d394" },
+    { text: "|-i⟩", position: new THREE.Vector3(0, -offset, 0), color: "#60d394" },
+  ];
+
+  labels.forEach(({ text, position, color }) => {
+    const sprite = createTextSprite(text, color);
+    sprite.position.copy(position);
+    group.add(sprite);
+  });
+
+  return group;
+}
+
+function createTextSprite(text: string, color: string): THREE.Sprite {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 128;
+  const context = canvas.getContext("2d");
+  if (!context) return new THREE.Sprite();
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.font = "700 48px system-ui, sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.lineWidth = 7;
+  context.strokeStyle = "rgba(11, 16, 32, 0.88)";
+  context.fillStyle = color;
+  context.strokeText(text, canvas.width / 2, canvas.height / 2);
+  context.fillText(text, canvas.width / 2, canvas.height / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(0.5, 0.25, 1);
+  return sprite;
+}
+
+function createFloorGrid(total: number): THREE.Group {
+  const group = new THREE.Group();
+  const material = new THREE.LineBasicMaterial({
+    color: 0x6f86b8,
+    transparent: true,
+    opacity: 0.12,
+    depthWrite: false,
+  });
+  const width = Math.max(6, total * 2.8);
+  const depth = 6;
+  const divisions = Math.max(12, total * 4);
+  const y = -1.32;
+
+  for (let i = 0; i <= divisions; i += 1) {
+    const x = -width / 2 + (width * i) / divisions;
+    const z = -depth / 2 + (depth * i) / divisions;
+    group.add(
+      new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(-width / 2, y, z),
+          new THREE.Vector3(width / 2, y, z),
+        ]),
+        material,
+      ),
+    );
+    group.add(
+      new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(x, y, -depth / 2),
+          new THREE.Vector3(x, y, depth / 2),
+        ]),
+        material,
+      ),
+    );
+  }
+
+  return group;
 }
 
 function createGrid(): THREE.Group {

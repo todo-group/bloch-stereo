@@ -1,11 +1,30 @@
 import { create } from "zustand";
-import type { Circuit, DisplayMode, ExecutionState, GateName, GateOp } from "../circuit/types";
+import type { Circuit, DisplayMode, ExecutionState, GateName, GateOp, SimulationBackend, StereoSettings } from "../circuit/types";
 import { exportQasm2 } from "../circuit/qasm2/exporter";
 import { parseQasm2 } from "../circuit/qasm2/parser";
 import { executeCircuit } from "../circuit/simulator/simulator";
-import { teleportationQasm } from "../presets/teleportation";
+import {
+  bellQasm,
+  createRandomSwapQasm,
+  createTeleportationQasm,
+  ghzQasm,
+  hCzMeasureQasm,
+  mixedProductQasm,
+  zeroQasm,
+  zeroZeroQasm,
+  zeroZeroZeroQasm,
+} from "../presets/teleportation";
 
-export type ForcedBranch = "random" | "00" | "01" | "10" | "11";
+export type PresetName =
+  | "zero"
+  | "zero-zero"
+  | "zero-zero-zero"
+  | "bell"
+  | "mixed-product"
+  | "ghz"
+  | "h-cz-measure"
+  | "random-swap"
+  | "teleportation";
 
 type AppState = {
   circuit: Circuit;
@@ -13,15 +32,19 @@ type AppState = {
   snapshots: ExecutionState[];
   currentStep: number;
   displayMode: DisplayMode;
+  simulationBackend: SimulationBackend;
+  stereoSettings: StereoSettings;
   autoplay: boolean;
   selectedGate: GateName;
+  rotationAngleDegrees: number;
+  noiseProbability: number;
   targetQubit: number;
   controlQubit: number;
-  forcedBranch: ForcedBranch;
   error?: string;
   setQasmText: (value: string) => void;
   importQasm: () => void;
   exportCircuit: () => void;
+  loadPreset: (preset: PresetName) => void;
   loadTeleportation: () => void;
   addGate: () => void;
   deleteGate: (opId: string) => void;
@@ -31,10 +54,13 @@ type AppState = {
   setStep: (step: number) => void;
   toggleAutoplay: () => void;
   setDisplayMode: (mode: DisplayMode) => void;
+  setSimulationBackend: (backend: SimulationBackend) => void;
+  setStereoSettings: (settings: Partial<StereoSettings>) => void;
   setSelectedGate: (gate: GateName) => void;
+  setRotationAngleDegrees: (degrees: number) => void;
+  setNoiseProbability: (probability: number) => void;
   setTargetQubit: (qubit: number) => void;
   setControlQubit: (qubit: number) => void;
-  setForcedBranch: (branch: ForcedBranch) => void;
 };
 
 const starterQasm = `OPENQASM 2.0;
@@ -51,14 +77,24 @@ const initialCircuit = parseQasm2(starterQasm);
 export const useAppStore = create<AppState>((set, get) => ({
   circuit: initialCircuit,
   qasmText: starterQasm,
-  snapshots: recalculate(initialCircuit, "random"),
+  snapshots: recalculate(initialCircuit),
   currentStep: 0,
   displayMode: "2d",
+  simulationBackend: "density-matrix",
+  stereoSettings: {
+    enabled: false,
+    eyeSeparation: 0.12,
+    convergenceDistance: 4.2,
+    redGain: 1,
+    cyanGain: 0.82,
+    preserveBrightness: false,
+  },
   autoplay: false,
   selectedGate: "h",
+  rotationAngleDegrees: 90,
+  noiseProbability: 0.25,
   targetQubit: 0,
   controlQubit: 0,
-  forcedBranch: "random",
 
   setQasmText: (value) => set({ qasmText: value, error: undefined }),
 
@@ -67,7 +103,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const circuit = parseQasm2(get().qasmText);
       set({
         circuit,
-        snapshots: recalculate(circuit, get().forcedBranch),
+        snapshots: recalculate(circuit, get().simulationBackend),
         currentStep: 0,
         autoplay: false,
         targetQubit: clamp(get().targetQubit, 0, circuit.numQubits - 1),
@@ -81,19 +117,21 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   exportCircuit: () => set(({ circuit }) => ({ qasmText: exportQasm2(circuit), error: undefined })),
 
-  loadTeleportation: () => {
-    const circuit = parseQasm2(teleportationQasm);
+  loadPreset: (preset) => {
+    const qasm = makePresetQasm(preset);
+    const circuit = parseQasm2(qasm);
     set({
       circuit,
-      qasmText: teleportationQasm,
-      snapshots: recalculate(circuit, get().forcedBranch),
+      qasmText: qasm,
+      snapshots: recalculate(circuit, get().simulationBackend),
       currentStep: 0,
       autoplay: false,
       targetQubit: 0,
-      controlQubit: 1,
+      controlQubit: Math.min(1, circuit.numQubits - 1),
       error: undefined,
     });
   },
+  loadTeleportation: () => get().loadPreset("teleportation"),
 
   addGate: () => {
     const state = get();
@@ -102,6 +140,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       state.circuit.ops.length,
       state.targetQubit,
       state.controlQubit,
+      state.rotationAngleDegrees,
+      state.noiseProbability,
       state.circuit.numQubits,
       state.circuit.numClbits,
     );
@@ -114,7 +154,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       circuit,
       qasmText: exportQasm2(circuit),
-      snapshots: recalculate(circuit, state.forcedBranch),
+      snapshots: recalculate(circuit, state.simulationBackend),
       currentStep: circuit.ops.length,
       error: undefined,
     });
@@ -126,7 +166,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       .filter((op) => op.id !== opId)
       .map((op, index) => ({ ...op, step: index }));
     const circuit = { ...state.circuit, ops };
-    const snapshots = recalculate(circuit, state.forcedBranch);
+    const snapshots = recalculate(circuit, state.simulationBackend);
     set({
       circuit,
       qasmText: exportQasm2(circuit),
@@ -140,40 +180,77 @@ export const useAppStore = create<AppState>((set, get) => ({
   resetExecution: () => set({ currentStep: 0, autoplay: false }),
   nextStep: () => {
     const state = get();
+    const nextStep = Math.min(state.currentStep + 1, state.snapshots.length - 1);
+    const snapshots = shouldResampleOnStep(state, nextStep)
+      ? recalculate(state.circuit, state.simulationBackend, fixedMeasurementsBeforeCurrentStep(state))
+      : state.snapshots;
     set({
-      currentStep: Math.min(state.currentStep + 1, state.snapshots.length - 1),
-      autoplay: state.currentStep + 1 < state.snapshots.length - 1 ? state.autoplay : false,
+      snapshots,
+      currentStep: nextStep,
+      autoplay: nextStep < snapshots.length - 1 ? state.autoplay : false,
     });
   },
   previousStep: () => {
     const state = get();
     set({ currentStep: Math.max(state.currentStep - 1, 0), autoplay: false });
   },
-  setStep: (step) => set(({ snapshots }) => ({ currentStep: clamp(step, 0, snapshots.length - 1), autoplay: false })),
+  setStep: (step) => {
+    const state = get();
+    const nextStep = clamp(step, 0, state.snapshots.length - 1);
+    const snapshots = shouldResampleOnStep(state, nextStep)
+      ? recalculate(state.circuit, state.simulationBackend, fixedMeasurementsBeforeCurrentStep(state))
+      : state.snapshots;
+    set({ snapshots, currentStep: nextStep, autoplay: false });
+  },
   toggleAutoplay: () => set(({ autoplay }) => ({ autoplay: !autoplay })),
   setDisplayMode: (mode) => set({ displayMode: mode }),
-  setSelectedGate: (gate) => set({ selectedGate: gate }),
-  setTargetQubit: (qubit) => set({ targetQubit: qubit }),
-  setControlQubit: (qubit) => set({ controlQubit: qubit }),
-  setForcedBranch: (branch) => {
+  setSimulationBackend: (backend) => {
     const state = get();
     set({
-      forcedBranch: branch,
-      snapshots: recalculate(state.circuit, branch),
+      simulationBackend: backend,
+      snapshots: recalculate(state.circuit, backend),
       currentStep: 0,
       autoplay: false,
     });
   },
+  setStereoSettings: (settings) => set((state) => ({ stereoSettings: { ...state.stereoSettings, ...settings } })),
+  setSelectedGate: (gate) => set({ selectedGate: gate }),
+  setRotationAngleDegrees: (degrees) => set({ rotationAngleDegrees: Number.isFinite(degrees) ? degrees : 0 }),
+  setNoiseProbability: (probability) => set({ noiseProbability: clamp(Number.isFinite(probability) ? probability : 0, 0, 1) }),
+  setTargetQubit: (qubit) => set({ targetQubit: qubit }),
+  setControlQubit: (qubit) => set({ controlQubit: qubit }),
 }));
 
-function recalculate(circuit: Circuit, forcedBranch: ForcedBranch): ExecutionState[] {
-  return executeCircuit(circuit, { forcedMeasurements: branchToForcedMeasurements(forcedBranch) });
+function makePresetQasm(preset: PresetName): string {
+  if (preset === "zero") return zeroQasm;
+  if (preset === "zero-zero") return zeroZeroQasm;
+  if (preset === "zero-zero-zero") return zeroZeroZeroQasm;
+  if (preset === "bell") return bellQasm;
+  if (preset === "mixed-product") return mixedProductQasm;
+  if (preset === "ghz") return ghzQasm;
+  if (preset === "h-cz-measure") return hCzMeasureQasm;
+  if (preset === "random-swap") return createRandomSwapQasm();
+  return createTeleportationQasm();
 }
 
-function branchToForcedMeasurements(branch: ForcedBranch): Array<0 | 1> | undefined {
-  if (branch === "random") return undefined;
-  const value = Number.parseInt(branch, 2);
-  return [(value & 1) as 0 | 1, ((value >> 1) & 1) as 0 | 1];
+function shouldResampleOnStep(state: AppState, nextStep: number): boolean {
+  if (nextStep <= state.currentStep) return false;
+  return state.snapshots
+    .slice(state.currentStep + 1, nextStep + 1)
+    .some((snapshot) => snapshot.appliedOp?.name === "measure");
+}
+
+function fixedMeasurementsBeforeCurrentStep(state: AppState): Array<0 | 1> {
+  const snapshot = state.snapshots[state.currentStep];
+  return snapshot.measurementLog.map((record) => record.value);
+}
+
+function recalculate(
+  circuit: Circuit,
+  backend: SimulationBackend = "density-matrix",
+  forcedMeasurements?: Array<0 | 1>,
+): ExecutionState[] {
+  return executeCircuit(circuit, { backend, forcedMeasurements });
 }
 
 type GateOpResult =
@@ -185,6 +262,8 @@ function makeGateOp(
   step: number,
   target: number,
   control: number,
+  rotationAngleDegrees: number,
+  noiseProbability: number,
   numQubits: number,
   numClbits: number,
 ): GateOpResult {
@@ -229,7 +308,11 @@ function makeGateOp(
       },
     };
   }
-  const params = name === "rx" || name === "ry" || name === "rz" ? [Math.PI / 2] : undefined;
+  const params = isRotationGate(name)
+    ? [degreesToRadians(rotationAngleDegrees)]
+    : isNoiseGate(name)
+      ? [clamp(noiseProbability, 0, 1)]
+      : undefined;
   return {
     ok: true,
     op: {
@@ -240,6 +323,18 @@ function makeGateOp(
       step,
     },
   };
+}
+
+function isRotationGate(name: GateName): boolean {
+  return name === "rx" || name === "ry" || name === "rz";
+}
+
+function isNoiseGate(name: GateName): boolean {
+  return name === "depolarize" || name === "dephase" || name === "ampdamp";
+}
+
+function degreesToRadians(degrees: number): number {
+  return (degrees * Math.PI) / 180;
 }
 
 function clamp(value: number, min: number, max: number): number {

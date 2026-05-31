@@ -1,9 +1,11 @@
 import { add, cloneState, complex, mul } from "../../math/complex";
-import type { Circuit, Complex, ExecutionState, GateOp } from "../types";
+import type { Circuit, Complex, ExecutionState, GateOp, SimulationBackend } from "../types";
+import { executeDensityMatrixCircuit } from "./densityMatrixSimulator";
 import { isSingleQubitGate, singleQubitMatrix, type Matrix2 } from "./gates";
 import { measureQubit } from "./measurement";
 
 export type ExecutionOptions = {
+  backend?: SimulationBackend;
   forcedMeasurements?: Array<0 | 1>;
   random?: () => number;
 };
@@ -16,6 +18,9 @@ export function initialStatevector(numQubits: number): Complex[] {
 
 export function executeCircuit(circuit: Circuit, options: ExecutionOptions = {}): ExecutionState[] {
   validateCircuitForExecution(circuit);
+  if (options.backend === "density-matrix") {
+    return executeDensityMatrixCircuit(circuit, options);
+  }
   let statevector = initialStatevector(circuit.numQubits);
   let classicalBits = Array.from({ length: circuit.numClbits }, () => 0);
   let measurementIndex = 0;
@@ -53,7 +58,7 @@ export function executeCircuit(circuit: Circuit, options: ExecutionOptions = {})
     } else if (op.name === "cz") {
       statevector = applyControlledZ(statevector, requiredControl(op), op.targets[0]);
     } else if (op.name === "swap") {
-      statevector = applySwap(statevector, op.targets[0], op.targets[1]);
+      statevector = applySwapViaControlledX(statevector, op.targets[0], op.targets[1]);
     } else if (op.name === "measure") {
       const forced = options.forcedMeasurements?.[measurementIndex];
       const measured = measureQubit(statevector, op.targets[0], forced, options.random);
@@ -67,6 +72,10 @@ export function executeCircuit(circuit: Circuit, options: ExecutionOptions = {})
         value: measured.value,
         probability: measured.probability,
       });
+    } else if (op.name === "depolarize" || op.name === "dephase" || op.name === "ampdamp") {
+      throw new Error(`${op.name} requires the density-matrix simulation backend.`);
+    } else {
+      throw new Error(`Unsupported operation in statevector backend: ${op.name}.`);
     }
 
     snapshots.push({
@@ -165,20 +174,7 @@ function applyControlledZ(statevector: Complex[], control: number, target: numbe
   );
 }
 
-function applySwap(statevector: Complex[], first: number, second: number): Complex[] {
+function applySwapViaControlledX(statevector: Complex[], first: number, second: number): Complex[] {
   if (first === second) return cloneState(statevector);
-  const next = cloneState(statevector);
-  const firstMask = 1 << first;
-  const secondMask = 1 << second;
-
-  for (let basis = 0; basis < statevector.length; basis += 1) {
-    const firstBit = (basis & firstMask) !== 0;
-    const secondBit = (basis & secondMask) !== 0;
-    if (firstBit === secondBit || !firstBit) continue;
-    const swapped = basis ^ firstMask ^ secondMask;
-    next[basis] = statevector[swapped];
-    next[swapped] = statevector[basis];
-  }
-
-  return next;
+  return applyControlledX(applyControlledX(applyControlledX(statevector, first, second), second, first), first, second);
 }

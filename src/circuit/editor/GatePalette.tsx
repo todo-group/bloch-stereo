@@ -2,8 +2,9 @@ import type { GateName } from "../types";
 import { useAppStore } from "../../store/useAppStore";
 
 const gateGroups: Array<{ label: string; gates: GateName[] }> = [
-  { label: "1Q", gates: ["h", "x", "y", "z", "s", "t", "rx", "ry", "rz"] },
-  { label: "2Q", gates: ["cx", "cz", "swap"] },
+  { label: "1Q", gates: ["h", "x", "y", "z", "s", "sdg", "t", "tdg", "rx", "ry", "rz"] },
+  { label: "2Q", gates: ["cx", "cz"] },
+  { label: "Noise", gates: ["depolarize", "dephase", "ampdamp"] },
   { label: "Read", gates: ["measure"] },
 ];
 
@@ -23,7 +24,7 @@ export function GatePalette() {
                 className={selectedGate === gate ? "is-selected" : ""}
                 onClick={() => setSelectedGate(gate)}
               >
-                {gate.toUpperCase()}
+                {formatGateLabel(gate)}
               </button>
             ))}
           </div>
@@ -31,4 +32,13 @@ export function GatePalette() {
       ))}
     </div>
   );
+}
+
+function formatGateLabel(gate: GateName): string {
+  if (gate === "sdg") return "S+";
+  if (gate === "tdg") return "T+";
+  if (gate === "depolarize") return "DEP";
+  if (gate === "dephase") return "PHASE";
+  if (gate === "ampdamp") return "DAMP";
+  return gate.toUpperCase();
 }

@@ -4,15 +4,16 @@ import type { DisplayMode } from "../circuit/types";
 type CorrelationMatrixStereoProps = {
   matrix: number[][];
   displayMode: DisplayMode;
+  pairLabel: string;
 };
 
 const labels = ["X", "Y", "Z"];
 
-export function CorrelationMatrixStereo({ matrix, displayMode }: CorrelationMatrixStereoProps) {
+export function CorrelationMatrixStereo({ matrix, displayMode, pairLabel }: CorrelationMatrixStereoProps) {
   return (
     <div className={displayMode === "anaglyph-red-green" ? "correlation is-stereo" : "correlation"}>
       <header>
-        <span>Correlation q0/q1</span>
+        <span>Connected correlation {pairLabel}</span>
       </header>
       <div className="matrix-grid">
         <span />

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Trash2 } from "lucide-react";
 import type { Circuit, GateOp } from "../types";
 
@@ -14,11 +15,22 @@ const LEFT_MARGIN = 58;
 const TOP_MARGIN = 34;
 
 export function CircuitCanvas({ circuit, currentStep, onStepSelect, onDeleteGate }: CircuitCanvasProps) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const width = Math.max(680, LEFT_MARGIN + circuit.ops.length * COLUMN_WIDTH + 120);
   const height = TOP_MARGIN + circuit.numQubits * ROW_HEIGHT + 30;
 
+  useEffect(() => {
+    const scroll = scrollRef.current;
+    if (!scroll || currentStep <= 0) return;
+    const currentX = LEFT_MARGIN + (currentStep - 1) * COLUMN_WIDTH + 32;
+    scroll.scrollTo({
+      left: Math.max(0, currentX - scroll.clientWidth / 2),
+      behavior: "smooth",
+    });
+  }, [currentStep]);
+
   return (
-    <div className="circuit-scroll">
+    <div className="circuit-scroll" ref={scrollRef}>
       <svg width={width} height={height} role="img" aria-label="Quantum circuit timeline">
         {Array.from({ length: circuit.numQubits }, (_, qubit) => {
           const y = TOP_MARGIN + qubit * ROW_HEIGHT;
@@ -112,7 +124,7 @@ function GateGlyph({
   const y = TOP_MARGIN + op.targets[0] * ROW_HEIGHT;
   return (
     <g className={current ? "gate-glyph is-current" : "gate-glyph"} onClick={onSelect}>
-      <GateBox x={x} y={y} label={op.name === "measure" ? "M" : op.name.toUpperCase()} />
+      <GateBox x={x} y={y} label={formatGateLabel(op)} />
     </g>
   );
 }
@@ -141,5 +153,30 @@ function formatGate(op: GateOp): string {
   if (op.name === "measure") return `M q${op.targets[0]} -> c${op.clbits?.[0] ?? 0}`;
   if (op.name === "cx" || op.name === "cz") return `${op.name.toUpperCase()} q${op.controls?.[0]} -> q${op.targets[0]}`;
   if (op.name === "swap") return `SWAP q${op.targets[0]}, q${op.targets[1]}`;
-  return `${op.name.toUpperCase()} q${op.targets[0]}`;
+  const angle = isRotationGate(op) && op.params?.[0] !== undefined ? `(${formatDegrees(op.params[0])}deg)` : "";
+  const probability = isNoiseGate(op) && op.params?.[0] !== undefined ? `(${op.params[0].toFixed(2)})` : "";
+  return `${formatGateLabel(op)}${angle}${probability} q${op.targets[0]}`;
+}
+
+function formatGateLabel(op: GateOp): string {
+  if (op.name === "measure") return "M";
+  if (op.name === "sdg") return "S+";
+  if (op.name === "tdg") return "T+";
+  if (op.name === "depolarize") return "DEP";
+  if (op.name === "dephase") return "PHASE";
+  if (op.name === "ampdamp") return "DAMP";
+  return op.name.toUpperCase();
+}
+
+function isRotationGate(op: GateOp): boolean {
+  return op.name === "rx" || op.name === "ry" || op.name === "rz";
+}
+
+function isNoiseGate(op: GateOp): boolean {
+  return op.name === "depolarize" || op.name === "dephase" || op.name === "ampdamp";
+}
+
+function formatDegrees(radians: number): string {
+  const degrees = (radians * 180) / Math.PI;
+  return Math.abs(degrees - Math.round(degrees)) < 1e-6 ? String(Math.round(degrees)) : degrees.toFixed(2);
 }

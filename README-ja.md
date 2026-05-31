@@ -4,192 +4,96 @@
 
 [![CI](https://github.com/wistaria/bloch-stereo/actions/workflows/ci.yml/badge.svg)](https://github.com/wistaria/bloch-stereo/actions/workflows/ci.yml)
 
-量子回路、Bloch 球、縮約密度行列、相関、エンタングルメントを、ブラウザ上で直感的に可視化するためのステレオ対応量子回路エディタです。
+Bloch Stereo は、教育・デモ・科学館展示向けのブラウザベース量子回路エディタ兼ステレオ Bloch 球ビジュアライザです。
 
-科学館・展示・教育デモ・対話的な量子情報の学習を主な用途として想定しています。
+小規模な回路を対象に、縮約密度行列、測定 collapse、接続相関、量子テレポーテーションを視覚的に理解しやすくすることを重視しています。
 
 ## 機能
 
 - OpenQASM 2.0 の import/export
-- 軽量な量子回路エディタ
-- ステップ実行、前後移動、リセット、オートプレイ
-- Bloch ベクトルの滑らかなアニメーション
-- 単一量子ビットの縮約密度行列と純度の可視化
-- 2量子ビット相関行列の可視化
-- 量子テレポーテーションのプリセット
-- 赤緑アナグリフ方式のステレオ表示
-- トラックボール操作を意識した大きめの UI
+- ステップ実行、前後移動、リセット、オートプレイ、左右矢印キーによる移動
+- density-matrix backend をデフォルトにしたシミュレーション
+- density-matrix noise channel: `depolarize(p)`, `dephase(p)`, `ampdamp(p)`
+- simulator API では statevector backend も利用可能
+- 1量子ビット縮約密度行列から計算した Bloch ベクトルの滑らかなアニメーション
+- 1から3個までの表示 Bloch 球を選択可能
+- 量子ビット対を選択できる 2量子ビット接続相関行列
+- measurement ステップへ進むときの乱数サンプリング
+- 以前の measurement 結果は保持し、これから入る measurement だけを再サンプル
+- 赤シアンアナグリフ stereo 表示
+- eye separation、focus、red gain、cyan gain の調整
+- `|0>` が上になる向きへ戻す Bloch view reset
+- ボタンで開く QASM editor modal
 
-## 画面イメージ
+## プリセット
+
+プリセットのプルダウンには以下があります。
+
+- `|0>`
+- `|00>`
+- `|000>`
+- Bell 状態生成
+- 積混合状態 `I/2 x I/2`
+- GHZ 状態生成
+- H-CZ 測定回路
+- ランダムな2量子ビット状態 + 3つの `cx` による SWAP
+- Alice の初期状態がランダムな量子テレポーテーション
+
+量子テレポーテーションと random swap は、同じ項目を再選択すると新しいランダム状態で生成されます。
+
+## 回路エディタ
+
+エディタは以下に対応しています。
+
+- gate palette
+- target qubit selector
+- controlled/two-qubit gate の場合だけ表示される control qubit selector
+- `rx`, `ry`, `rz` 用の degree 入力
+- noise channel 用の probability 入力
+- 選択 gate の末尾追加
+- 既存 gate の削除
+- timeline からの step 選択
+- 現在 step が中央付近に来る自動横スクロール
+- modal editor からの QASM import/export
+
+表示される gate button は `H`, `X`, `Y`, `Z`, `S`, `S+`, `T`, `T+`, `RX`, `RY`, `RZ`, `CX`, `CZ`, `DEP`, `PHASE`, `DAMP`, measurement です。`S+` と `T+` は標準 OpenQASM の `sdg` と `tdg` として export されます。
+
+parser と simulator は `id` と `swap` も対応しています。SWAP button は palette には表示せず、random-swap preset では 3つの `cx` に分解しています。
+
+## 可視化
+
+それぞれの Bloch 球は、選択された量子ビットの縮約密度行列をプロットします。エンタングルした量子ビットは混合状態として表示され、Bloch ベクトルが短くなります。
+
+選択した量子ビット対について、3x3 行列は接続相関を表示します。
 
 ```txt
-[ Circuit Editor ]     [ Stereo Bloch Visualization ]
-q0 ──H────●────────
-          │
-q1 ───────X────M───
-             ◉
-         ↗
-      Bloch Sphere
+C_ab = <sigma_a tensor sigma_b> - <sigma_a><sigma_b>
 ```
 
-## 設計方針
-
-このプロジェクトは、量子情報を数式だけでなく空間的・連続的に理解できるようにすることを目標にしています。
-
-- 量子状態は滑らかに変化して見えること
-- エンタングルメントが視覚的に追えること
-- テレポーテーションをステップごとに理解できること
-- 操作が展示環境でも壊れにくく、わかりやすいこと
-- ステレオ表示が理解を助け、目に負担をかけすぎないこと
-
-## 対応可視化
-
-### 単一量子ビット表示
-
-- ステレオ対応 Bloch 球
-- アニメーションする Bloch ベクトル
-- 純度表示
-- 半透明グリッド、緯線、経線
-
-### 2量子ビット表示
-
-- 2つの Bloch 球
-- 3x3 相関行列
-- 縮約状態による混合状態の表示
-
-### 量子テレポーテーション
-
-内蔵プリセットには次の流れが含まれます。
-
-- Bell ペア生成
-- Bell 測定
-- 測定による collapse
-- 古典ビットによる条件付き補正
-- 受信側量子ビットでの状態再構成
-
-## 表示モード
-
-### 通常 2D モード
-
-- 明るい UI
-- 色で区別しやすいゲート
-- 見やすい Bloch ベクトル
-
-### 赤緑ステレオモード
-
-赤緑または赤シアンのアナグリフ眼鏡で立体視できます。
-
-- 2D/ステレオをアプリ内で切り替え
-- ステレオ時は彩度とコントラストを抑えめに調整
-- Bloch 球の奥行きを強調
-
-## 推奨ハードウェア
-
-右手側のポインティングデバイスとして、Elecom HUGE PLUS などのトラックボールを想定しています。低いカーソル精度でも扱いやすいよう、大きめの操作対象を優先しています。
-
-左手側のマクロデバイスとして、Elgato Stream Deck MK.2 を想定しています。初期版では UI 上のボタンとして、実行制御・リセット・ステレオ切り替え・テレポーテーション読み込みを操作できます。
-
-## 技術スタック
-
-- TypeScript
-- React
-- Vite
-- Three.js / WebGL
-- Zustand
+積状態では零行列になります。
 
 ## OpenQASM 対応範囲
 
-現在は OpenQASM 2.0 の小規模な教育用回路を対象にしています。
+対応している OpenQASM 範囲:
 
-対応している主な操作:
-
-- `x`, `y`, `z`, `h`, `s`, `t`
-- `rx`, `ry`, `rz`
+- 1つの quantum register
+- 1つの classical register
+- `id`, `x`, `y`, `z`, `h`, `s`, `sdg`, `t`, `tdg`
+- `rx(theta)`, `ry(theta)`, `rz(theta)`
+- アプリ独自の noise 拡張 `depolarize(p)`, `dephase(p)`, `ampdamp(p)`
 - `cx`, `cz`, `swap`
-- `measure`
-- `if (c==n)` による条件付き実行
+- `measure q[i] -> c[j]`
+- little-endian の classical register 全体の値に対する `if (c==n)`
 
-初期版の目安:
+シミュレータは教育・展示向けに、1から8量子ビット、200 gate 程度までの小規模回路を想定しています。
 
-- 1-8 量子ビット
-- 200 ゲート程度まで
-- pure state の状態ベクトルシミュレーション
+## 実行方法
 
-## インストールと実行
-
-### 必要環境
+必要環境:
 
 - Node.js 20 以上
 - npm
-- WebGL が有効なブラウザ
-
-環境確認:
-
-```sh
-node --version
-npm --version
-```
-
-### macOS
-
-Homebrew を使う場合:
-
-```sh
-brew install node
-```
-
-または Node.js 公式サイトから Node.js 20 以上をインストールしてください。
-
-```txt
-https://nodejs.org/
-```
-
-### Linux
-
-Debian / Ubuntu で NodeSource を使う場合:
-
-```sh
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
-```
-
-Fedora の場合:
-
-```sh
-sudo dnf install nodejs npm
-```
-
-ディストリビューション標準の Node.js が古い場合は、`nvm` または Node.js 公式パッケージで Node.js 20 以上を入れてください。
-
-### Windows
-
-PowerShell で winget を使う場合:
-
-```powershell
-winget install OpenJS.NodeJS.LTS
-```
-
-または Node.js 公式サイトから Windows インストーラをダウンロードしてください。
-
-```txt
-https://nodejs.org/
-```
-
-インストール後、新しい PowerShell を開いて確認します。
-
-```powershell
-node --version
-npm --version
-```
-
-## 使い方
-
-リポジトリを取得します。
-
-```sh
-git clone https://github.com/yourname/bloch-stereo.git
-cd bloch-stereo
-```
+- WebGL 対応ブラウザ
 
 依存関係をインストールします。
 
@@ -203,22 +107,10 @@ npm install
 npm run dev
 ```
 
-Vite が表示する URL をブラウザで開きます。通常は次の URL です。
+Vite が表示する URL を開きます。通常は次の URL です。
 
 ```txt
 http://localhost:5173/
-```
-
-本番ビルド:
-
-```sh
-npm run build
-```
-
-本番ビルドのプレビュー:
-
-```sh
-npm run preview
 ```
 
 テスト:
@@ -227,7 +119,13 @@ npm run preview
 npm run test
 ```
 
-任意の表示検証:
+ビルド:
+
+```sh
+npm run build
+```
+
+任意の canvas 検証:
 
 ```sh
 npx playwright install chromium
@@ -242,54 +140,25 @@ src/
     editor/
     qasm2/
     simulator/
-  stereo/
+    types.ts
   presets/
+  stereo/
   store/
   styles/
+scripts/
+  verify-canvas.mjs
+doc/
+  spec.md
 ```
-
-## OpenQASM 例
-
-```qasm
-OPENQASM 2.0;
-include "qelib1.inc";
-qreg q[3];
-creg c[2];
-h q[1];
-cx q[1], q[2];
-cx q[0], q[1];
-h q[0];
-measure q[0] -> c[0];
-measure q[1] -> c[1];
-if (c==1) z q[2];
-if (c==2) x q[2];
-if (c==3) z q[2];
-if (c==3) x q[2];
-```
-
-## アニメーション
-
-シミュレーション状態は離散的かつ正確に保持し、可視化側で Bloch ベクトルを滑らかに補間します。
-
-- ステップ間の smoothstep 補間
-- 前後ステップ移動
-- オートプレイ
-- 測定 collapse の滑らかな表示
-
-## 性能目標
-
-- 2D モードで 60 FPS
-- ステレオモードで 45 FPS 以上
-- 8 量子ビット、200 ゲート程度までの展示・教育用途
 
 ## 今後の拡張候補
 
+- full density matrix UI
 - OpenQASM 3
+- Stream Deck hardware integration
 - WebXR
-- ノイズシミュレーション
-- GPU アクセラレーション
-- テンソルネットワーク backend
-- 量子誤り訂正の可視化
+- GPU acceleration
+- tensor-network backend
 
 ## ライセンス
 

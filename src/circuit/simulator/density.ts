@@ -15,6 +15,10 @@ const PAULI_Z: Matrix = [
   [complex(1), complex(0)],
   [complex(0), complex(-1)],
 ];
+const IDENTITY_2: Matrix = [
+  [complex(1), complex(0)],
+  [complex(0), complex(1)],
+];
 const PAULIS = [PAULI_X, PAULI_Y, PAULI_Z];
 
 export function singleQubitDensityMatrix(
@@ -62,6 +66,38 @@ export function blochVectorsForState(statevector: Complex[], numQubits: number):
   );
 }
 
+export function densityMatrixFromStatevector(statevector: Complex[]): Matrix {
+  return statevector.map((rowAmp) => statevector.map((colAmp) => mul(rowAmp, conj(colAmp))));
+}
+
+export function singleQubitDensityMatrixFromDensity(
+  densityMatrix: Matrix,
+  numQubits: number,
+  qubit: number,
+): [[Complex, Complex], [Complex, Complex]] {
+  const rho = [
+    [complex(0), complex(0)],
+    [complex(0), complex(0)],
+  ] as [[Complex, Complex], [Complex, Complex]];
+
+  for (let row = 0; row < 1 << numQubits; row += 1) {
+    for (let col = 0; col < 1 << numQubits; col += 1) {
+      if (!sameEnvironment(row, col, numQubits, qubit)) continue;
+      const rowBit = (row >> qubit) & 1;
+      const colBit = (col >> qubit) & 1;
+      rho[rowBit][colBit] = add(rho[rowBit][colBit], densityMatrix[row][col]);
+    }
+  }
+
+  return rho;
+}
+
+export function blochVectorsForDensityMatrix(densityMatrix: Matrix, numQubits: number): BlochVector[] {
+  return Array.from({ length: numQubits }, (_, qubit) =>
+    blochVectorFromDensity(singleQubitDensityMatrixFromDensity(densityMatrix, numQubits, qubit)),
+  );
+}
+
 export function twoQubitDensityMatrix(
   statevector: Complex[],
   numQubits: number,
@@ -84,18 +120,58 @@ export function twoQubitDensityMatrix(
 
 export function correlationMatrix(statevector: Complex[], numQubits: number, first: number, second: number): number[][] {
   const rho = twoQubitDensityMatrix(statevector, numQubits, first, second);
+  return correlationMatrixFromTwoQubitDensity(rho);
+}
+
+export function twoQubitDensityMatrixFromDensity(
+  densityMatrix: Matrix,
+  numQubits: number,
+  first: number,
+  second: number,
+): Matrix {
+  const rho = Array.from({ length: 4 }, () => Array.from({ length: 4 }, () => complex(0)));
+  for (let row = 0; row < 1 << numQubits; row += 1) {
+    for (let col = 0; col < 1 << numQubits; col += 1) {
+      if (sameEnvironment(row, col, numQubits, first, second)) {
+        const rowPair = pairIndex(row, first, second);
+        const colPair = pairIndex(col, first, second);
+        rho[rowPair][colPair] = add(rho[rowPair][colPair], densityMatrix[row][col]);
+      }
+    }
+  }
+
+  return rho;
+}
+
+export function correlationMatrixFromDensityMatrix(
+  densityMatrix: Matrix,
+  numQubits: number,
+  first: number,
+  second: number,
+): number[][] {
+  const rho = twoQubitDensityMatrixFromDensity(densityMatrix, numQubits, first, second);
+  return correlationMatrixFromTwoQubitDensity(rho);
+}
+
+function correlationMatrixFromTwoQubitDensity(rho: Matrix): number[][] {
   return PAULIS.map((pauliA) =>
     PAULIS.map((pauliB) => {
-      const sigma = kron2(pauliA, pauliB);
-      let trace = complex(0);
-      for (let row = 0; row < 4; row += 1) {
-        for (let col = 0; col < 4; col += 1) {
-          trace = add(trace, mul(rho[row][col], sigma[col][row]));
-        }
-      }
-      return sanitize(trace.re);
+      const joint = expectation(rho, kron2(pauliA, pauliB));
+      const first = expectation(rho, kron2(pauliA, IDENTITY_2));
+      const second = expectation(rho, kron2(IDENTITY_2, pauliB));
+      return sanitize(joint - first * second);
     }),
   );
+}
+
+function expectation(rho: Matrix, observable: Matrix): number {
+  let trace = complex(0);
+  for (let row = 0; row < rho.length; row += 1) {
+    for (let col = 0; col < rho.length; col += 1) {
+      trace = add(trace, mul(rho[row][col], observable[col][row]));
+    }
+  }
+  return trace.re;
 }
 
 function pairIndex(basis: number, first: number, second: number): number {
@@ -104,7 +180,9 @@ function pairIndex(basis: number, first: number, second: number): number {
   return (firstBit << 1) + secondBit;
 }
 
-function sameEnvironment(row: number, col: number, numQubits: number, first: number, second: number): boolean {
+function sameEnvironment(row: number, col: number, numQubits: number, qubit: number): boolean;
+function sameEnvironment(row: number, col: number, numQubits: number, first: number, second: number): boolean;
+function sameEnvironment(row: number, col: number, numQubits: number, first: number, second?: number): boolean {
   for (let qubit = 0; qubit < numQubits; qubit += 1) {
     if (qubit === first || qubit === second) continue;
     if (((row >> qubit) & 1) !== ((col >> qubit) & 1)) return false;

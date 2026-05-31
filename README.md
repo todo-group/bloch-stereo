@@ -4,270 +4,102 @@
 
 [![CI](https://github.com/wistaria/bloch-stereo/actions/workflows/ci.yml/badge.svg)](https://github.com/wistaria/bloch-stereo/actions/workflows/ci.yml)
 
-Interactive stereoscopic visualization environment for quantum circuits, Bloch spheres, reduced density matrices, and entanglement.
-Designed for:
-- science exhibitions
-- education
-- interactive demonstrations
-- quantum information visualization
----
-# Features
+Bloch Stereo is a browser-based quantum circuit editor and stereoscopic Bloch-sphere visualizer for education, demonstrations, and science exhibitions.
+
+It focuses on small circuits where reduced density matrices, measurement collapse, connected correlations, and quantum teleportation can be understood visually.
+
+## Features
+
 - OpenQASM 2.0 import/export
-- lightweight circuit editor
-- step-by-step execution
-- animated Bloch-sphere visualization
-- reduced density matrix visualization
-- two-qubit correlation visualization
-- quantum teleportation demonstration
-- stereoscopic red-green rendering
-- Stream Deck integration
-- trackball-oriented interaction
----
-# Screenshot
-```txt
-[ Circuit Editor ]     [ Stereo Bloch Visualization ]
-q0 ──H────●────────
-          │
-q1 ───────X────M───
-             ◉
-         ↗
-      Bloch Sphere
-```
+- Step-by-step circuit execution with previous, next, reset, autoplay, and arrow-key navigation
+- Density-matrix simulation backend by default, with a statevector backend still available in the simulator API
+- Density-matrix noise channels: `depolarize(p)`, `dephase(p)`, and `ampdamp(p)`
+- Smooth Bloch-vector animation from reduced single-qubit density matrices
+- Selectable Bloch-sphere display for one to three qubits
+- Selectable two-qubit connected correlation matrix
+- Random measurement sampling when entering measurement steps, while preserving earlier measurement outcomes
+- Red/cyan anaglyph stereo mode with eye separation, focus, red gain, and cyan gain controls
+- Bloch view reset button that restores the camera with `|0>` upward
+- QASM editor modal opened from the circuit editor
 
-⸻
+## Presets
 
-Design Goals
+The preset pull-down currently includes:
 
-This project aims to make quantum information visually intuitive.
+- `|0>`
+- `|00>`
+- `|000>`
+- Bell state generation
+- Product mixed state `I/2 x I/2`
+- GHZ state generation
+- H-CZ measurement circuit
+- Random two-qubit state followed by SWAP decomposed into three `cx` gates
+- Quantum teleportation with a random Alice input state
 
-The core philosophy is:
+Choosing the teleportation or random-swap preset again generates a fresh random input state.
 
-* quantum states should move smoothly
-* entanglement should be visible
-* teleportation should be understandable
-* interaction should feel physical
-* stereoscopic depth should enhance intuition
+## Circuit Editor
 
-⸻
+The editor supports:
 
-Supported Visualizations
+- gate palette
+- target qubit selector
+- control qubit selector only for controlled/two-qubit gates
+- degree input for `rx`, `ry`, and `rz`
+- probability input for noise channels
+- append selected gate
+- delete existing gates
+- timeline step selection with automatic horizontal scrolling
+- QASM import/export through the modal editor
 
-Single-Qubit View
+Displayed gate buttons include `H`, `X`, `Y`, `Z`, `S`, `S+`, `T`, `T+`, `RX`, `RY`, `RZ`, `CX`, `CZ`, `DEP`, `PHASE`, `DAMP`, and measurement. `S+` and `T+` are exported as standard OpenQASM `sdg` and `tdg`.
 
-* stereoscopic Bloch sphere
-* animated Bloch vector
-* purity indication
-* optional trajectory history
+The parser and simulator also support `id` and `swap`. The SWAP button is intentionally not shown in the palette; the random-swap preset uses the three-`cx` decomposition.
 
-⸻
+## Visualization
 
-Two-Qubit View
+Each Bloch sphere plots the selected qubit's reduced density matrix. Entangled qubits therefore appear as mixed states with shortened Bloch vectors.
 
-* two Bloch spheres
-* reduced density matrices
-* 3×3 correlation matrix
-* entanglement visualization
-
-⸻
-
-Quantum Teleportation
-
-Includes a built-in teleportation preset with:
-
-* Bell-pair generation
-* measurement visualization
-* classical communication
-* correction operations
-* reconstructed state visualization
-
-⸻
-
-Display Modes
-
-Standard 2D Mode
-
-* colorful rendering
-* bright UI
-* vivid Bloch vectors
-
-⸻
-
-Red-Green Stereo Mode
-
-Supports red-green anaglyph stereoscopic rendering.
-
-Recommended glasses:
-
-* red-green
-    or
-* red-cyan
-
-Features:
-
-* adjustable stereo separation
-* depth-enhanced Bloch spheres
-* stereoscopic entanglement visualization
-
-⸻
-
-Recommended Hardware
-
-Right Hand
-
-Recommended pointing device:
-
-* Elecom HUGE PLUS trackball
-
-Designed for:
-
-* smooth camera control
-* low cursor travel
-* exhibition robustness
-
-⸻
-
-Left Hand
-
-Recommended macro controller:
-
-* Elgato Stream Deck MK.2 (15-key)
-
-Default mappings include:
-
-* execution control
-* gate insertion
-* stereo toggle
-* teleportation preset
-* reset
-* autoplay
-
-⸻
-
-Technology Stack
-
-* TypeScript
-* React
-* Vite
-* Three.js
-* WebGL
-* Zustand
-
-⸻
-
-OpenQASM Support
-
-Currently supported:
-
-* OpenQASM 2.0
-
-Supported operations:
-
-* single-qubit gates
-* two-qubit gates
-* measurement
-* conditional execution
-
-⸻
-
-Installation and Running
-
-Requirements
-
-* Node.js 20 or later
-* npm, included with Node.js
-* A modern WebGL-capable browser such as Chrome, Edge, Firefox, or Safari
-
-Check your environment:
-
-```sh
-node --version
-npm --version
-```
-
-macOS
-
-Install Node.js with Homebrew:
-
-```sh
-brew install node
-```
-
-Or install Node.js 20+ from:
+For a selected qubit pair, the 3x3 matrix displays connected correlations:
 
 ```txt
-https://nodejs.org/
+C_ab = <sigma_a tensor sigma_b> - <sigma_a><sigma_b>
 ```
 
-Linux
+Product states display as the zero matrix.
 
-Using NodeSource on Debian/Ubuntu:
+## OpenQASM Support
 
-```sh
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
-```
+Supported OpenQASM scope:
 
-Using Fedora:
+- one quantum register
+- one classical register
+- `id`, `x`, `y`, `z`, `h`, `s`, `sdg`, `t`, `tdg`
+- `rx(theta)`, `ry(theta)`, `rz(theta)`
+- app-specific noise extensions: `depolarize(p)`, `dephase(p)`, `ampdamp(p)`
+- `cx`, `cz`, `swap`
+- `measure q[i] -> c[j]`
+- `if (c==n)` conditions over the full little-endian classical register value
 
-```sh
-sudo dnf install nodejs npm
-```
+The simulator is designed for educational circuits of roughly 1 to 8 qubits and up to about 200 gates.
 
-If your distribution provides an older Node.js, use `nvm` or the official Node.js packages and install Node.js 20+.
+## Running
 
-Windows
+Requirements:
 
-Install Node.js 20+ with winget in PowerShell:
+- Node.js 20 or later
+- npm
+- A WebGL-capable browser
 
-```powershell
-winget install OpenJS.NodeJS.LTS
-```
-
-Or download the Windows installer from:
-
-```txt
-https://nodejs.org/
-```
-
-After installation, open a new PowerShell window and verify:
-
-```powershell
-node --version
-npm --version
-```
-
-Clone
-
-```sh
-git clone https://github.com/yourname/bloch-stereo.git
-cd bloch-stereo
-```
-
-Install Dependencies
-
-macOS / Linux:
+Install dependencies:
 
 ```sh
 npm install
 ```
 
-Windows PowerShell:
-
-```powershell
-npm install
-```
-
-Development Server
-
-macOS / Linux:
+Start the development server:
 
 ```sh
-npm run dev
-```
-
-Windows PowerShell:
-
-```powershell
 npm run dev
 ```
 
@@ -277,174 +109,55 @@ Open the URL printed by Vite, usually:
 http://localhost:5173/
 ```
 
-Build
+Run tests:
+
+```sh
+npm run test
+```
+
+Build:
 
 ```sh
 npm run build
 ```
 
-Preview the production build:
-
-```sh
-npm run preview
-```
-
-Optional visual verification:
+Optional canvas verification:
 
 ```sh
 npx playwright install chromium
 node scripts/verify-canvas.mjs
 ```
 
-⸻
+## Project Structure
 
-Project Structure
-
+```txt
 src/
   circuit/
-    CircuitEditor.tsx
-    CircuitCanvas.tsx
-    GatePalette.tsx
+    editor/
     qasm2/
-      parser.ts
-      exporter.ts
     simulator/
-      simulator.ts
-      gates.ts
-      measurement.ts
-      density.ts
-  stereo/
-    BlochSphereStereo.tsx
-    CorrelationMatrixStereo.tsx
-    StereoRenderer.tsx
+    types.ts
   presets/
-    teleportation.qasm
+  stereo/
+  store/
+  styles/
+scripts/
+  verify-canvas.mjs
+doc/
+  spec.md
+```
 
-⸻
+## Roadmap
 
-Example OpenQASM
+Possible future work:
 
-OPENQASM 2.0;
-include "qelib1.inc";
-qreg q[3];
-creg c[2];
-h q[1];
-cx q[1], q[2];
-cx q[0], q[1];
-h q[0];
-measure q[0] -> c[0];
-measure q[1] -> c[1];
-if (c==1) x q[2];
-if (c==2) z q[2];
+- full density-matrix UI
+- OpenQASM 3
+- Stream Deck hardware integration
+- WebXR
+- GPU acceleration
+- tensor-network backend
 
-⸻
-
-Animation
-
-Bloch vectors move continuously between execution steps.
-
-Features:
-
-* smooth interpolation
-* interruptible transitions
-* autoplay support
-* gate-aware animation (future)
-
-⸻
-
-Bloch Sphere Rendering
-
-Bloch spheres include:
-
-* latitude lines
-* longitude lines
-* semi-transparent globe rendering
-
-The goal is to make the Bloch sphere resemble a physical transparent globe.
-
-⸻
-
-Performance Targets
-
-Target performance:
-
-* 60 FPS in 2D mode
-* ≥ 45 FPS in stereo mode
-
-Typical limits:
-
-* ≤ 8 qubits
-* ≤ 200 gates
-
-⸻
-
-Development Roadmap
-
-Phase 1
-
-* circuit rendering
-* statevector simulation
-* Bloch sphere rendering
-
-Phase 2
-
-* OpenQASM parser/exporter
-* reduced density matrices
-* step execution
-
-Phase 3
-
-* animated transitions
-* teleportation visualization
-* measurement visualization
-
-Phase 4
-
-* stereo optimization
-* Stream Deck optimization
-* exhibition hardening
-
-⸻
-
-Future Extensions
-
-Possible future features:
-
-* OpenQASM 3
-* GPU acceleration
-* tensor-network backend
-* noise simulation
-* WebXR support
-* quantum error correction visualization
-
-⸻
-
-Philosophy
-
-Quantum information is often mathematically elegant but visually inaccessible.
-
-This project attempts to make:
-
-* quantum states
-* entanglement
-* teleportation
-* measurement collapse
-
-feel spatial, continuous, and intuitive.
-
-⸻
-
-License
+## License
 
 [MIT License](LICENSE)
-
-⸻
-
-Acknowledgements
-
-Inspired by:
-
-* Bloch sphere visualization tools
-* quantum education software
-* stereoscopic visualization systems
-* interactive science museum exhibits
