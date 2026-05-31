@@ -12,6 +12,7 @@ It focuses on small circuits where reduced density matrices, measurement collaps
 
 - OpenQASM 2.0 import/export
 - Step-by-step circuit execution with previous, next, reset, autoplay, and arrow-key navigation
+- Stream Deck-friendly keyboard controls: `ArrowLeft`, `ArrowRight`, `R`/`Home`, `E`, `+`, `C`, and `Z`
 - Density-matrix simulation backend by default, with a statevector backend still available in the simulator API
 - Density-matrix noise channels: `depolarize(p)`, `dephase(p)`, and `ampdamp(p)`
 - Smooth Bloch-vector animation from reduced single-qubit density matrices
@@ -21,6 +22,7 @@ It focuses on small circuits where reduced density matrices, measurement collaps
 - Red/cyan anaglyph stereo mode with eye separation, focus, red gain, and cyan gain controls
 - Bloch view reset button that restores the camera with `|0>` upward
 - QASM editor modal opened from the circuit editor
+- Hide/show button for the left circuit editor panel
 
 ## Presets
 
@@ -55,6 +57,28 @@ The editor supports:
 Displayed gate buttons include `H`, `X`, `Y`, `Z`, `S`, `S+`, `T`, `T+`, `RX`, `RY`, `RZ`, `CX`, `CZ`, `DEP`, `PHASE`, `DAMP`, and measurement. `S+` and `T+` are exported as standard OpenQASM `sdg` and `tdg`.
 
 The parser and simulator also support `id` and `swap`. The SWAP button is intentionally not shown in the palette; the random-swap preset uses the three-`cx` decomposition.
+
+## Stream Deck
+
+Core actions can be triggered by configuring Stream Deck buttons to send keyboard shortcuts:
+
+- previous step: `ArrowLeft`
+- next step: `ArrowRight`
+- reset execution: `R` or `Home`
+- toggle circuit editor panel: `E`
+- add selected gate: `+` or numpad `+`
+- rotate Bloch view while held: `C` + mouse move
+- zoom Bloch view while held: `Z` + vertical mouse move
+
+Direct Stream Deck SDK integration is still future work.
+
+Generate MK.2 key icons and a keymap file:
+
+```sh
+npm run streamdeck:mk2
+```
+
+The generated assets are written to `streamdeck/mk2/`.
 
 ## Visualization
 
@@ -142,7 +166,10 @@ src/
   store/
   styles/
 scripts/
+  generate-streamdeck-mk2.mjs
   verify-canvas.mjs
+streamdeck/
+  mk2/
 doc/
   spec.md
 ```

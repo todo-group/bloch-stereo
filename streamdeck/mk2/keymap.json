@@ -1,0 +1,70 @@
+{
+  "device": "Elgato Stream Deck MK.2",
+  "application": "Bloch Stereo",
+  "usage": "Assign each Stream Deck key to the Hotkey action shown in `hotkey`, then set the icon file as the key image.",
+  "keys": [
+    {
+      "title": "Prev",
+      "hotkey": "ArrowLeft",
+      "icon": "prev.svg",
+      "position": {
+        "row": 1,
+        "column": 2
+      }
+    },
+    {
+      "title": "Next",
+      "hotkey": "ArrowRight",
+      "icon": "next.svg",
+      "position": {
+        "row": 1,
+        "column": 4
+      }
+    },
+    {
+      "title": "Reset",
+      "hotkey": "R or Home",
+      "icon": "reset.svg",
+      "position": {
+        "row": 2,
+        "column": 2
+      }
+    },
+    {
+      "title": "Editor",
+      "hotkey": "E",
+      "icon": "editor.svg",
+      "position": {
+        "row": 2,
+        "column": 3
+      }
+    },
+    {
+      "title": "Add",
+      "hotkey": "+",
+      "icon": "add.svg",
+      "position": {
+        "row": 2,
+        "column": 4
+      }
+    },
+    {
+      "title": "Rotate",
+      "hotkey": "C",
+      "icon": "rotate.svg",
+      "position": {
+        "row": 3,
+        "column": 2
+      }
+    },
+    {
+      "title": "Zoom",
+      "hotkey": "Z",
+      "icon": "zoom.svg",
+      "position": {
+        "row": 3,
+        "column": 4
+      }
+    }
+  ]
+}

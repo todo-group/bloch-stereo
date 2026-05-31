@@ -60,6 +60,12 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
     pitchVelocity: 0,
   });
   const pointerRef = useRef({ dragging: false, x: 0, y: 0 });
+  const keyboardCameraRef = useRef<{
+    mode: "rotate" | "zoom" | null;
+    x: number;
+    y: number;
+    initialized: boolean;
+  }>({ mode: null, x: 0, y: 0, initialized: false });
 
   const targetVectors = useMemo(() => vectors.map(toVector3), [vectors]);
 
@@ -137,12 +143,71 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
       event.preventDefault();
       cameraMotion.current.targetRadius = clamp(cameraMotion.current.targetRadius + event.deltaY * 0.004, 3.8, 12);
     };
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
+        return;
+      }
+      if (event.key === "c" || event.key === "C") {
+        event.preventDefault();
+        if (keyboardCameraRef.current.mode !== "rotate") {
+          keyboardCameraRef.current = { mode: "rotate", x: 0, y: 0, initialized: false };
+        }
+      } else if (event.key === "z" || event.key === "Z") {
+        event.preventDefault();
+        if (keyboardCameraRef.current.mode !== "zoom") {
+          keyboardCameraRef.current = { mode: "zoom", x: 0, y: 0, initialized: false };
+        }
+      }
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      const mode = keyboardCameraRef.current.mode;
+      if (
+        (mode === "rotate" && (event.key === "c" || event.key === "C")) ||
+        (mode === "zoom" && (event.key === "z" || event.key === "Z"))
+      ) {
+        keyboardCameraRef.current = { mode: null, x: 0, y: 0, initialized: false };
+      }
+    };
+    const onMouseMove = (event: MouseEvent) => {
+      const keyboardCamera = keyboardCameraRef.current;
+      if (!keyboardCamera.mode) return;
+      event.preventDefault();
+      if (!keyboardCamera.initialized) {
+        keyboardCamera.x = event.clientX;
+        keyboardCamera.y = event.clientY;
+        keyboardCamera.initialized = true;
+        return;
+      }
+      const dx = event.clientX - keyboardCamera.x;
+      const dy = event.clientY - keyboardCamera.y;
+      keyboardCamera.x = event.clientX;
+      keyboardCamera.y = event.clientY;
+      if (keyboardCamera.mode === "rotate") {
+        cameraMotion.current.yawVelocity += dx * 0.0009;
+        cameraMotion.current.pitchVelocity += dy * 0.00075;
+      } else {
+        cameraMotion.current.targetRadius = clamp(cameraMotion.current.targetRadius + dy * 0.012, 3.8, 12);
+      }
+    };
+    const onWindowBlur = () => {
+      keyboardCameraRef.current = { mode: null, x: 0, y: 0, initialized: false };
+    };
 
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointermove", onPointerMove);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
     renderer.domElement.addEventListener("pointercancel", onPointerUp);
     renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("blur", onWindowBlur);
     window.addEventListener("resize", resize);
     resize();
 
@@ -170,6 +235,10 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
       renderer.domElement.removeEventListener("pointercancel", onPointerUp);
       renderer.domElement.removeEventListener("wheel", onWheel);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("blur", onWindowBlur);
       mount.removeChild(renderer.domElement);
       scene.traverse((object: THREE.Object3D) => {
         if (object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.LineSegments) {

@@ -53,6 +53,7 @@ Design priorities:
 - gate palette and append-only gate insertion
 - gate deletion from the operation strip
 - OpenQASM 2.0 text import/export
+- left circuit editor panel hide/show toggle
 - exact statevector simulation
 - density-matrix simulation backend selectable in the simulator API
 - density-matrix noise channels: `depolarize(p)`, `dephase(p)`, and `ampdamp(p)`
@@ -60,6 +61,7 @@ Design priorities:
 - conditional execution using full classical-register integer values such as `if (c==1)`
 - execution snapshots for every step
 - previous step, next step, reset, autoplay
+- Stream Deck-friendly keyboard shortcuts for previous, next, reset, editor hide/show, gate insertion, and held camera control
 - Three.js Bloch sphere renderer
 - semi-transparent Bloch sphere globes with latitude/longitude grids
 - smoothstep Bloch-vector animation over 400 ms
@@ -85,7 +87,7 @@ Design priorities:
 
 - drag-and-drop gate movement
 - inline parameter editing UI
-- additional keyboard shortcuts beyond previous/next step
+- additional keyboard shortcuts beyond the Stream Deck-friendly core set
 - undo/redo
 - multiple quantum or classical registers
 - arbitrary OpenQASM include semantics
@@ -121,7 +123,7 @@ The initial version supports:
 10. red-green/cyan anaglyph stereoscopic rendering
 11. trackball-friendly camera rotation and zoom
 
-Stream Deck support remains a future hardware integration goal.
+Direct Stream Deck SDK support remains a future hardware integration goal.
 
 ---
 
@@ -180,12 +182,17 @@ Target future macro device:
 
 - Elgato Stream Deck MK.2
 
-The initial version exposes the intended actions as visible UI buttons, but does not yet communicate with Stream Deck hardware.
+The current version supports Stream Deck use through ordinary keyboard actions. It does not yet communicate with Stream Deck hardware through the SDK.
 
 ### Implemented Interaction Model
 
 - left click selects steps and controls
 - left and right arrow keys move to the previous and next execution step
+- `R` or `Home` resets execution
+- `+` or numpad `+` appends the selected gate
+- `E` toggles the left circuit editor panel
+- holding `C` while moving the mouse rotates the Bloch camera
+- holding `Z` while moving the mouse vertically zooms the Bloch camera
 - pointer drag rotates the Bloch camera with damping
 - wheel zooms the Bloch camera
 - large transport buttons are always visible
@@ -293,7 +300,10 @@ src/
     app.css
 
 scripts/
+  generate-streamdeck-mk2.mjs
   verify-canvas.mjs
+streamdeck/
+  mk2/
 ```
 
 ---
@@ -522,6 +532,7 @@ Only equality against the full classical register is implemented.
 - OpenQASM import/export through a modal QASM editor opened by a button
 - circuit timeline SVG
 - automatic horizontal scrolling so the current execution step remains centered where possible
+- left editor panel can be hidden to give the visualization full width
 - top-level transport controls
 
 ### Not Yet Implemented
@@ -933,7 +944,25 @@ The current visualization shows state evolution, collapse, classical bits, corre
 
 ## Stream Deck Plan
 
-Stream Deck hardware integration is not implemented yet.
+Stream Deck can currently trigger core actions by sending keyboard shortcuts. Direct Stream Deck SDK integration is not implemented yet.
+
+Implemented keyboard mappings:
+
+- previous step: `ArrowLeft`
+- next step: `ArrowRight`
+- reset execution: `R` or `Home`
+- toggle circuit editor panel: `E`
+- add selected gate: `+` or numpad `+`
+- rotate Bloch view while held: `C` plus mouse movement
+- zoom Bloch view while held: `Z` plus vertical mouse movement
+
+The repository includes `scripts/generate-streamdeck-mk2.mjs`, exposed as:
+
+```sh
+npm run streamdeck:mk2
+```
+
+It generates SVG key images and a `keymap.json` guide under `streamdeck/mk2/`.
 
 Target actions:
 

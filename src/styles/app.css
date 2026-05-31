@@ -192,6 +192,10 @@ input[type="number"] {
   flex: 1;
 }
 
+.workspace.is-editor-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .editor-panel,
 .visual-stage {
   min-width: 0;
@@ -455,8 +459,22 @@ input[type="number"] {
 
 .visual-stage {
   display: grid;
+  position: relative;
   grid-template-rows: minmax(420px, 1fr) auto;
   background: #0b1020;
+}
+
+.editor-toggle {
+  position: absolute;
+  z-index: 5;
+  top: 14px;
+  left: 14px;
+  min-height: 40px;
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(16, 24, 39, 0.84);
+  backdrop-filter: blur(8px);
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 
 .bloch-stage {

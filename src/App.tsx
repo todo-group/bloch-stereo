@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CircleDot, Eye, Pause, Play, RotateCcw, SkipBack, SkipForward } from "lucide-react";
+import { CircleDot, Eye, PanelLeftClose, PanelLeftOpen, Pause, Play, RotateCcw, SkipBack, SkipForward } from "lucide-react";
 import { CircuitEditor } from "./circuit/editor/CircuitEditor";
 import { CorrelationMatrixStereo } from "./stereo/CorrelationMatrixStereo";
 import { BlochSphereStereo } from "./stereo/BlochSphereStereo";
@@ -39,9 +39,11 @@ export function App() {
     setDisplayMode,
     setStereoSettings,
     loadPreset,
+    addGate,
   } = useAppStore();
   const [visibleQubits, setVisibleQubits] = useState<number[]>([0, 1, 2]);
   const [correlationPair, setCorrelationPair] = useState<[number, number]>([0, 1]);
+  const [editorOpen, setEditorOpen] = useState(true);
   const snapshot = snapshots[currentStep] ?? snapshots[0];
   const allBlochVectors = snapshot.densityMatrix
     ? blochVectorsForDensityMatrix(snapshot.densityMatrix, circuit.numQubits)
@@ -86,11 +88,20 @@ export function App() {
       } else if (event.key === "ArrowRight") {
         event.preventDefault();
         nextStep();
+      } else if (event.key === "r" || event.key === "R" || event.key === "Home") {
+        event.preventDefault();
+        resetExecution();
+      } else if (event.key === "+" || event.code === "NumpadAdd") {
+        event.preventDefault();
+        addGate();
+      } else if (event.key === "e" || event.key === "E") {
+        event.preventDefault();
+        setEditorOpen((open) => !open);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [nextStep, previousStep]);
+  }, [addGate, nextStep, previousStep, resetExecution, setEditorOpen]);
 
   const toggleVisibleQubit = (qubit: number) => {
     setVisibleQubits((current) => {
@@ -214,9 +225,19 @@ export function App() {
         </div>
       </header>
 
-      <section className="workspace">
-        <CircuitEditor />
+      <section className={editorOpen ? "workspace" : "workspace is-editor-collapsed"}>
+        {editorOpen ? <CircuitEditor /> : null}
         <section className="visual-stage" aria-label="Bloch visualization">
+          <button
+            type="button"
+            className="editor-toggle"
+            onClick={() => setEditorOpen((open) => !open)}
+            title={editorOpen ? "Hide circuit editor" : "Show circuit editor"}
+            aria-expanded={editorOpen}
+          >
+            {editorOpen ? <PanelLeftClose aria-hidden="true" /> : <PanelLeftOpen aria-hidden="true" />}
+            {editorOpen ? "Hide Editor" : "Show Editor"}
+          </button>
           <BlochSphereStereo
             vectors={blochVectors}
             labels={effectiveVisibleQubits.map((qubit) => `q${qubit}`)}
