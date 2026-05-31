@@ -1,7 +1,7 @@
 # Bloch Stereo Quantum Circuit Editor Specification
 
-Version: 0.4
-Last updated: 2026-05-25
+Version: 0.5
+Last updated: 2026-05-31
 
 ---
 
@@ -19,6 +19,7 @@ The current implementation combines:
 - single-qubit reduced density matrix calculations
 - two-qubit correlation matrix visualization
 - red-green anaglyph stereoscopic rendering
+- adjustable anaglyph stereo controls in the single-qubit example
 - an educational quantum teleportation preset
 - exhibition-oriented controls with large targets
 
@@ -66,6 +67,9 @@ Design priorities:
 - standard 2D rendering
 - red-green/cyan anaglyph rendering via Three.js `AnaglyphEffect`
 - stereo mode switching without restart
+- adjustable eye separation, stereo focus, and red/cyan channel strength in `examples/single-qubit`
+- Bloch-axis labels for `|0>`, `|1>`, `|+>`, `|->`, `|i>`, and `|-i>` in `examples/single-qubit`
+- depth cues in `examples/single-qubit`: floor grid, bounding cube, depth rings, and front/back markers
 - single-qubit purity display
 - two-qubit correlation matrix for `q0/q1`
 - classical bit readout
@@ -87,8 +91,8 @@ Design priorities:
 - custom gate definitions
 - OpenQASM 3 control flow
 - Stream Deck hardware integration
-- configurable stereo eye separation UI
-- configurable convergence distance UI
+- configurable stereo eye separation UI in the main circuit editor
+- configurable convergence distance UI in the main circuit editor
 - Bloch trajectory history
 - animated correlation-matrix interpolation
 - explicit entanglement indicator
@@ -238,6 +242,7 @@ Rendering:
 - Three.js
 - WebGL
 - Three.js `AnaglyphEffect`
+- local adjustable anaglyph effect in `examples/single-qubit`
 
 State management:
 
@@ -594,6 +599,18 @@ The renderer displays:
 - animated Bloch vector
 - purity label
 
+The single-qubit example additionally displays:
+
+- large axis labels:
+  - `|0>` and `|1>` on the Bloch Z axis
+  - `|+>` and `|->` on the Bloch X axis
+  - `|i>` and `|-i>` on the Bloch Y axis
+- a low-opacity floor grid behind the Bloch sphere
+- a low-opacity wireframe cube enclosing the Bloch sphere
+- depth rings and front/back markers for stereoscopic readability
+
+Axis labels are rendered as canvas-text sprites with dark outlines so they remain readable in both 2D and anaglyph stereo modes.
+
 Grid defaults:
 
 ```ts
@@ -644,6 +661,8 @@ Implemented camera behavior:
 - pitch is clamped for comfort
 - wheel changes camera radius
 - camera always looks at the scene origin
+- the single-qubit example moves the camera slightly closer when stereo mode is active
+- the single-qubit example exposes stereo focus as a user-adjustable value
 
 ### Measurement Visualization
 
@@ -674,11 +693,23 @@ The UI exposes:
 
 Current implementation details:
 
-- no eye-separation UI yet
-- no convergence-distance UI yet
 - canvas is visually adjusted with reduced saturation and stable contrast
+- the main circuit editor does not yet expose eye-separation or convergence-distance controls
+- `examples/single-qubit` uses a local adjustable anaglyph effect based on Three.js `AnaglyphEffect`
+- `examples/single-qubit` exposes eye separation with range `0.04` to `0.30`
+- `examples/single-qubit` exposes stereo focus with range `2.8` to `8.0`
+- `examples/single-qubit` exposes red and cyan image gain controls
+- `examples/single-qubit` uses a separation-first shader mode to reduce ghosting through imperfect red/cyan glasses
 
 The renderer must remain readable in both 2D and anaglyph mode.
+
+Recommended calibration workflow for anaglyph stereo:
+
+1. Enable stereo mode.
+2. Adjust red and cyan image gains until each eye sees primarily its intended channel.
+3. Adjust eye separation until the Bloch sphere, floor grid, and bounding cube have clear but comfortable parallax.
+4. Adjust stereo focus so axis labels, grid lines, and the Bloch vector remain stable and readable.
+5. Verify that Bloch sphere labels, grid lines, vector, floor grid, and bounding cube remain readable.
 
 ---
 
@@ -720,6 +751,8 @@ Measurement modes:
 
 - random sampling
 - forced branch: `00`, `01`, `10`, `11`
+
+In `examples/single-qubit`, returning to a pre-measurement history entry and moving forward into an existing measurement entry re-samples that measurement. Any later gate states in the example history are recomputed from the new collapsed state so the displayed history remains consistent.
 
 The current visualization shows state evolution, collapse, classical bits, correlations, and reconstructed target-state Bloch vector. It does not yet show explicit classical communication arrows or a dedicated teleportation narrative panel.
 
@@ -832,7 +865,8 @@ Potential future work:
 - gate-aware Bloch rotations
 - Stream Deck SDK integration
 - camera reset and camera presets
-- configurable stereo parameters
+- configurable stereo parameters in the main circuit editor
+- red/green-specific anaglyph matrix option in addition to red/cyan
 - GPU acceleration
 - tensor-network backend
 - noise simulation
