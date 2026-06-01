@@ -122,6 +122,7 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
     };
+    const resizeObserver = new ResizeObserver(resize);
 
     const onPointerDown = (event: PointerEvent) => {
       pointerRef.current = { dragging: true, x: event.clientX, y: event.clientY };
@@ -209,6 +210,7 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("blur", onWindowBlur);
     window.addEventListener("resize", resize);
+    resizeObserver.observe(mount);
     resize();
 
     let frame = 0;
@@ -229,6 +231,7 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
 
     return () => {
       window.cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
       window.removeEventListener("resize", resize);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
