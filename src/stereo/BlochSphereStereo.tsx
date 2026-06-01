@@ -22,6 +22,7 @@ type VectorArrow = {
 type SphereRig = {
   root: THREE.Group;
   arrow: VectorArrow;
+  mixedStateMarker: THREE.Mesh;
   purityRing: THREE.Mesh;
 };
 
@@ -32,6 +33,7 @@ type AnimationState = {
 };
 
 const TRANSITION_MS = 400;
+const MIXED_STATE_MARKER_THRESHOLD = 0.05;
 const STANDARD_CAMERA_RADIUS = 6.2;
 const RESET_CAMERA_YAW = 0;
 const RESET_CAMERA_PITCH = 0;
@@ -299,9 +301,14 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
     currentRef.current = current;
     rigsRef.current.forEach((rig, index) => {
       const vector = current[index] ?? new THREE.Vector3(0, 0, 1);
-      const length = Math.max(0.001, vector.length());
-      const direction = length > 0.001 ? vector.clone().normalize() : new THREE.Vector3(0, 0, 1);
-      updateVectorArrow(rig.arrow, direction, length * 0.94);
+      const length = vector.length();
+      const showMixedStateMarker = length <= MIXED_STATE_MARKER_THRESHOLD;
+      rig.arrow.root.visible = !showMixedStateMarker;
+      rig.mixedStateMarker.visible = showMixedStateMarker;
+      if (!showMixedStateMarker) {
+        const direction = vector.clone().normalize();
+        updateVectorArrow(rig.arrow, direction, length * 0.94);
+      }
       const target = targetVectors[index];
       rig.purityRing.scale.setScalar(0.74 + 0.24 * Math.sqrt(target?.lengthSq() ?? 1));
     });
@@ -357,6 +364,9 @@ function createSphereRig(index: number, total: number): SphereRig {
   const arrow = createVectorArrow(index % 2 === 0 ? 0xffdc73 : 0x60d394);
   root.add(arrow.root);
 
+  const mixedStateMarker = createMixedStateMarker(index % 2 === 0 ? 0xffdc73 : 0x60d394);
+  root.add(mixedStateMarker);
+
   const purityRing = new THREE.Mesh(
     new THREE.TorusGeometry(1.02, 0.008, 8, 96),
     new THREE.MeshBasicMaterial({ color: 0xf6f7fb, transparent: true, opacity: 0.26 }),
@@ -364,7 +374,7 @@ function createSphereRig(index: number, total: number): SphereRig {
   purityRing.rotation.x = Math.PI / 2;
   root.add(purityRing);
 
-  return { root, arrow, purityRing };
+  return { root, arrow, mixedStateMarker, purityRing };
 }
 
 function createVectorArrow(color: number): VectorArrow {
@@ -381,6 +391,20 @@ function createVectorArrow(color: number): VectorArrow {
   root.add(shaft, head);
   updateVectorArrow({ root, shaft, head }, new THREE.Vector3(0, 0, 1), 0.94);
   return { root, shaft, head };
+}
+
+function createMixedStateMarker(color: number): THREE.Mesh {
+  const marker = new THREE.Mesh(
+    new THREE.SphereGeometry(0.075, 24, 16),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.96,
+      depthWrite: false,
+    }),
+  );
+  marker.visible = false;
+  return marker;
 }
 
 function updateVectorArrow(arrow: VectorArrow, direction: THREE.Vector3, length: number) {
