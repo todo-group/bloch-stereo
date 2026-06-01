@@ -2,7 +2,7 @@
 
 [English](README.md) | [日本語](README-ja.md)
 
-[![CI](https://img.shields.io/github/actions/workflow/status/todo-group/bloch-stereo/ci.yml?branch=main&label=CI)](https://github.com/wistaria/bloch-stereo/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/todo-group/bloch-stereo/ci.yml?branch=main&label=CI)](https://github.com/todo-group/bloch-stereo/actions/workflows/ci.yml)
 ![Author](https://img.shields.io/badge/author-Synge%20Todo-0A7E8C)
 [![npm >=10.9](https://img.shields.io/badge/npm-%3E%3D10.9-CB3837?logo=npm&logoColor=white)](https://www.npmjs.com/)
 [![three.js](https://img.shields.io/npm/v/three?label=three.js&logo=threedotjs&logoColor=white)](https://www.npmjs.com/package/three)
