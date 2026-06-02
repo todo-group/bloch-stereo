@@ -641,9 +641,11 @@ The renderer displays:
 - longitude lines
 - three reference axes
 - animated Bloch vector
+- in-scene qubit label above each selected sphere
 - purity label
 
 Users can choose which qubits are shown as Bloch spheres. The UI allows one to three selected qubits so the stereoscopic view stays readable.
+Selected Bloch spheres are always arranged left-to-right by qubit index, independent of selection order.
 
 Users can also choose the qubit pair used for the displayed 3x3 connected correlation matrix.
 

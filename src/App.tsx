@@ -51,7 +51,7 @@ export function App() {
     ? blochVectorsForDensityMatrix(snapshot.densityMatrix, circuit.numQubits)
     : blochVectorsForState(snapshot.statevector, circuit.numQubits);
   const normalizedVisibleQubits = useMemo(
-    () => visibleQubits.filter((qubit) => qubit < circuit.numQubits).slice(0, 3),
+    () => visibleQubits.filter((qubit) => qubit < circuit.numQubits).slice(0, 3).sort((first, second) => first - second),
     [visibleQubits, circuit.numQubits],
   );
   const effectiveVisibleQubits = normalizedVisibleQubits.length ? normalizedVisibleQubits : [0];

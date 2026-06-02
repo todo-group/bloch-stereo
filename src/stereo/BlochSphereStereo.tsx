@@ -24,6 +24,7 @@ type SphereRig = {
   arrow: VectorArrow;
   mixedStateMarker: THREE.Mesh;
   purityRing: THREE.Mesh;
+  qubitLabel: THREE.Sprite;
 };
 
 type AnimationState = {
@@ -94,6 +95,16 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
       to: targetVectors.map((vector) => vector.clone()),
     };
   }, [targetVectors, activeStep]);
+
+  useEffect(() => {
+    rigsRef.current.forEach((rig, index) => {
+      updateTextSprite(rig.qubitLabel, labels[index] ?? `q${index}`, {
+        color: "#f6f7fb",
+        background: "rgba(11, 16, 32, 0.72)",
+        font: "800 52px system-ui, sans-serif",
+      });
+    });
+  }, [labels]);
 
   useEffect(() => {
     if (!mountRef.current) return undefined;
@@ -418,7 +429,16 @@ function createSphereRig(index: number, total: number): SphereRig {
   purityRing.rotation.x = Math.PI / 2;
   root.add(purityRing);
 
-  return { root, arrow, mixedStateMarker, purityRing };
+  const qubitLabel = createTextSprite(`q${index}`, {
+    color: "#f6f7fb",
+    background: "rgba(11, 16, 32, 0.72)",
+    font: "800 52px system-ui, sans-serif",
+  });
+  qubitLabel.position.set(0, -0.58, 1.68);
+  qubitLabel.scale.set(0.58, 0.29, 1);
+  root.add(qubitLabel);
+
+  return { root, arrow, mixedStateMarker, purityRing, qubitLabel };
 }
 
 function createVectorArrow(color: number): VectorArrow {
@@ -509,7 +529,7 @@ function createAxisLabels(): THREE.Group {
   ];
 
   labels.forEach(({ text, position, color }) => {
-    const sprite = createTextSprite(text, color);
+    const sprite = createTextSprite(text, { color });
     sprite.position.copy(position);
     group.add(sprite);
   });
@@ -517,22 +537,20 @@ function createAxisLabels(): THREE.Group {
   return group;
 }
 
-function createTextSprite(text: string, color: string): THREE.Sprite {
+type TextSpriteOptions = {
+  color: string;
+  background?: string;
+  font?: string;
+};
+
+function createTextSprite(text: string, options: TextSpriteOptions): THREE.Sprite {
   const canvas = document.createElement("canvas");
   canvas.width = 256;
   canvas.height = 128;
   const context = canvas.getContext("2d");
   if (!context) return new THREE.Sprite();
 
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  context.font = "700 48px system-ui, sans-serif";
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.lineWidth = 7;
-  context.strokeStyle = "rgba(11, 16, 32, 0.88)";
-  context.fillStyle = color;
-  context.strokeText(text, canvas.width / 2, canvas.height / 2);
-  context.fillText(text, canvas.width / 2, canvas.height / 2);
+  drawTextSpriteCanvas(context, text, options);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -545,6 +563,59 @@ function createTextSprite(text: string, color: string): THREE.Sprite {
   const sprite = new THREE.Sprite(material);
   sprite.scale.set(0.5, 0.25, 1);
   return sprite;
+}
+
+function updateTextSprite(sprite: THREE.Sprite, text: string, options: TextSpriteOptions) {
+  const material = sprite.material;
+  const texture = material.map;
+  if (!texture) return;
+
+  const image = texture.image;
+  if (!(image instanceof HTMLCanvasElement)) return;
+
+  const context = image.getContext("2d");
+  if (!context) return;
+
+  drawTextSpriteCanvas(context, text, options);
+  texture.needsUpdate = true;
+}
+
+function drawTextSpriteCanvas(context: CanvasRenderingContext2D, text: string, options: TextSpriteOptions) {
+  const canvas = context.canvas;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  if (options.background) {
+    context.fillStyle = options.background;
+    context.beginPath();
+    drawRoundedRect(context, 38, 28, canvas.width - 76, canvas.height - 56, 24);
+    context.fill();
+  }
+  context.font = options.font ?? "700 48px system-ui, sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.lineWidth = 7;
+  context.strokeStyle = "rgba(11, 16, 32, 0.88)";
+  context.fillStyle = options.color;
+  context.strokeText(text, canvas.width / 2, canvas.height / 2);
+  context.fillText(text, canvas.width / 2, canvas.height / 2);
+}
+
+function drawRoundedRect(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  context.moveTo(x + radius, y);
+  context.lineTo(x + width - radius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + radius);
+  context.lineTo(x + width, y + height - radius);
+  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  context.lineTo(x + radius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - radius);
+  context.lineTo(x, y + radius);
+  context.quadraticCurveTo(x, y, x + radius, y);
 }
 
 function createFloorGrid(total: number): THREE.Group {
