@@ -780,6 +780,8 @@ The current application exposes nine preset circuits from a top toolbar pull-dow
 8. random two-qubit product state followed by SWAP decomposed into three `cx` gates
 9. quantum teleportation with a random Alice input state
 
+After loading a preset, the preset pull-down keeps the selected preset visible so visitors can tell which demonstration circuit is active.
+
 ### Initial State Presets
 
 The initial-state presets contain no gates. They only define the quantum and classical register sizes.

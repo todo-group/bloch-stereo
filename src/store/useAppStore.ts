@@ -35,6 +35,7 @@ type AppState = {
   simulationBackend: SimulationBackend;
   stereoSettings: StereoSettings;
   autoplay: boolean;
+  selectedPreset?: PresetName;
   selectedGate: GateName;
   rotationAngleDegrees: number;
   noiseProbability: number;
@@ -90,13 +91,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     preserveBrightness: false,
   },
   autoplay: false,
+  selectedPreset: undefined,
   selectedGate: "h",
   rotationAngleDegrees: 90,
   noiseProbability: 0.25,
   targetQubit: 0,
   controlQubit: 0,
 
-  setQasmText: (value) => set({ qasmText: value, error: undefined }),
+  setQasmText: (value) => set({ qasmText: value, selectedPreset: undefined, error: undefined }),
 
   importQasm: () => {
     try {
@@ -108,6 +110,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         autoplay: false,
         targetQubit: clamp(get().targetQubit, 0, circuit.numQubits - 1),
         controlQubit: clamp(get().controlQubit, 0, circuit.numQubits - 1),
+        selectedPreset: undefined,
         error: undefined,
       });
     } catch (error) {
@@ -126,6 +129,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       snapshots: recalculate(circuit, get().simulationBackend),
       currentStep: 0,
       autoplay: false,
+      selectedPreset: preset,
       targetQubit: 0,
       controlQubit: Math.min(1, circuit.numQubits - 1),
       error: undefined,
@@ -156,6 +160,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       qasmText: exportQasm2(circuit),
       snapshots: recalculate(circuit, state.simulationBackend),
       currentStep: circuit.ops.length,
+      selectedPreset: undefined,
       error: undefined,
     });
   },
@@ -173,6 +178,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       snapshots,
       currentStep: Math.min(state.currentStep, snapshots.length - 1),
       autoplay: false,
+      selectedPreset: undefined,
       error: undefined,
     });
   },

@@ -32,6 +32,7 @@ export function App() {
     autoplay,
     displayMode,
     stereoSettings,
+    selectedPreset,
     nextStep,
     previousStep,
     resetExecution,
@@ -154,7 +155,7 @@ export function App() {
           <label>
             Preset
             <select
-              value=""
+              value={selectedPreset ?? ""}
               onChange={(event) => {
                 const preset = event.currentTarget.value as PresetName;
                 if (preset) loadPreset(preset);

@@ -40,3 +40,19 @@ measure q[1] -> c[1];
     expect(useAppStore.getState().snapshots[4].measurementLog.map((record) => record.value)).toEqual([1, 0]);
   });
 });
+
+describe("preset selection", () => {
+  it("keeps the selected preset visible until the circuit is edited manually", () => {
+    useAppStore.getState().loadPreset("ghz");
+
+    expect(useAppStore.getState().selectedPreset).toBe("ghz");
+
+    useAppStore.getState().setQasmText(`OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[1];
+creg c[1];
+`);
+
+    expect(useAppStore.getState().selectedPreset).toBeUndefined();
+  });
+});
