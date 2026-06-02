@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="doc/bloch-stereo-logo.svg" alt="Bloch Stereo logo" width="96" height="96">
+</p>
+
 # Bloch Stereo Quantum Circuit Editor
 
 [English](README.md) | [日本語](README-ja.md)

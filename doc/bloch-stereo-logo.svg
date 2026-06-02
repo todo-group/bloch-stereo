@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">Bloch Stereo logo</title>
+  <desc id="desc">An anaglyph-style circular dot mark with a cyan front outline and a red offset shadow.</desc>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="7">
+    <g transform="translate(10 10)" stroke="#ef4444" opacity="0.86">
+      <circle cx="44" cy="44" r="30" />
+      <circle cx="44" cy="44" r="4" fill="#ef4444" stroke="none" />
+    </g>
+    <g stroke="#7dd3fc">
+      <circle cx="44" cy="44" r="30" />
+      <circle cx="44" cy="44" r="4" fill="#7dd3fc" stroke="none" />
+    </g>
+  </g>
+</svg>

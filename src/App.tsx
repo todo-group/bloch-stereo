@@ -120,7 +120,10 @@ export function App() {
     <main className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <CircleDot aria-hidden="true" />
+          <span className="brand-mark" aria-hidden="true">
+            <CircleDot className="brand-mark-red" />
+            <CircleDot className="brand-mark-cyan" />
+          </span>
           <div>
             <h1>Bloch Stereo</h1>
             <p>Quantum circuit editor</p>
