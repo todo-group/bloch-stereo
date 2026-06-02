@@ -82,6 +82,15 @@ export type StereoSettings = {
   preserveBrightness: boolean;
 };
 
+export const DEFAULT_STEREO_SETTINGS: StereoSettings = {
+  enabled: false,
+  eyeSeparation: 0.12,
+  convergenceDistance: 4.2,
+  redGain: 1,
+  cyanGain: 0.82,
+  preserveBrightness: false,
+};
+
 export type BlochSphereGridOptions = {
   visible: boolean;
   latitudeCount: number;

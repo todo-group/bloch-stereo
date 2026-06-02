@@ -745,10 +745,13 @@ The UI exposes:
 - stereo focus
 - red image gain
 - cyan image gain
+- reset-to-default calibration button
 
 Current implementation details:
 
 - canvas is visually adjusted with reduced saturation and stable contrast
+- stereo calibration controls are disabled and visually muted while 2D mode is active
+- default stereo calibration is eye separation `0.12`, focus `4.2`, red gain `1.00`, and cyan gain `0.82`
 - eye separation range is `0.04` to `0.30`
 - stereo focus range is `2.8` to `8.0`
 - red and cyan image gain controls support imperfect red/cyan glasses

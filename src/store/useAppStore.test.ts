@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useAppStore } from "./useAppStore";
+import { DEFAULT_STEREO_SETTINGS } from "../circuit/types";
 
 describe("execution navigation", () => {
   afterEach(() => {
@@ -54,5 +55,20 @@ creg c[1];
 `);
 
     expect(useAppStore.getState().selectedPreset).toBeUndefined();
+  });
+});
+
+describe("stereo calibration", () => {
+  it("resets stereo settings to their defaults", () => {
+    useAppStore.getState().setStereoSettings({
+      eyeSeparation: 0.2,
+      convergenceDistance: 6,
+      redGain: 0.5,
+      cyanGain: 0.5,
+    });
+
+    useAppStore.getState().resetStereoSettings();
+
+    expect(useAppStore.getState().stereoSettings).toEqual(DEFAULT_STEREO_SETTINGS);
   });
 });

@@ -39,6 +39,7 @@ export function App() {
     toggleAutoplay,
     setDisplayMode,
     setStereoSettings,
+    resetStereoSettings,
     loadPreset,
     addGate,
   } = useAppStore();
@@ -65,6 +66,7 @@ export function App() {
         ? correlationMatrixFromDensityMatrix(snapshot.densityMatrix, circuit.numQubits, validCorrelationPair[0], validCorrelationPair[1])
         : correlationMatrix(snapshot.statevector, circuit.numQubits, validCorrelationPair[0], validCorrelationPair[1])
       : undefined;
+  const isStereoMode = displayMode === "anaglyph-red-green";
 
   useEffect(() => {
     if (!autoplay) return undefined;
@@ -170,7 +172,11 @@ export function App() {
             </select>
           </label>
         </div>
-        <div className="stereo-controls" aria-label="Stereo calibration controls">
+        <div
+          className={isStereoMode ? "stereo-controls" : "stereo-controls is-disabled"}
+          aria-label="Stereo calibration controls"
+          aria-disabled={!isStereoMode}
+        >
           <label>
             Eye
             <input
@@ -179,6 +185,7 @@ export function App() {
               max="0.3"
               step="0.01"
               value={stereoSettings.eyeSeparation}
+              disabled={!isStereoMode}
               onChange={(event) => setStereoSettings({ eyeSeparation: Number(event.currentTarget.value) })}
             />
             <output>{stereoSettings.eyeSeparation.toFixed(2)}</output>
@@ -191,6 +198,7 @@ export function App() {
               max="8"
               step="0.1"
               value={stereoSettings.convergenceDistance}
+              disabled={!isStereoMode}
               onChange={(event) => setStereoSettings({ convergenceDistance: Number(event.currentTarget.value) })}
             />
             <output>{stereoSettings.convergenceDistance.toFixed(1)}</output>
@@ -203,6 +211,7 @@ export function App() {
               max="1.3"
               step="0.05"
               value={stereoSettings.redGain}
+              disabled={!isStereoMode}
               onChange={(event) => setStereoSettings({ redGain: Number(event.currentTarget.value) })}
             />
             <output>{stereoSettings.redGain.toFixed(2)}</output>
@@ -215,10 +224,15 @@ export function App() {
               max="1.2"
               step="0.05"
               value={stereoSettings.cyanGain}
+              disabled={!isStereoMode}
               onChange={(event) => setStereoSettings({ cyanGain: Number(event.currentTarget.value) })}
             />
             <output>{stereoSettings.cyanGain.toFixed(2)}</output>
           </label>
+          <button type="button" onClick={resetStereoSettings} disabled={!isStereoMode} title="Reset stereo calibration defaults">
+            <RotateCcw aria-hidden="true" />
+            Default
+          </button>
         </div>
         <div className="step-counter">
           <span>{currentStep}</span>

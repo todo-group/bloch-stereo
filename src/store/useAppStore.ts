@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Circuit, DisplayMode, ExecutionState, GateName, GateOp, SimulationBackend, StereoSettings } from "../circuit/types";
+import { DEFAULT_STEREO_SETTINGS } from "../circuit/types";
 import { exportQasm2 } from "../circuit/qasm2/exporter";
 import { parseQasm2 } from "../circuit/qasm2/parser";
 import { executeCircuit } from "../circuit/simulator/simulator";
@@ -57,6 +58,7 @@ type AppState = {
   setDisplayMode: (mode: DisplayMode) => void;
   setSimulationBackend: (backend: SimulationBackend) => void;
   setStereoSettings: (settings: Partial<StereoSettings>) => void;
+  resetStereoSettings: () => void;
   setSelectedGate: (gate: GateName) => void;
   setRotationAngleDegrees: (degrees: number) => void;
   setNoiseProbability: (probability: number) => void;
@@ -82,14 +84,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   currentStep: 0,
   displayMode: "2d",
   simulationBackend: "density-matrix",
-  stereoSettings: {
-    enabled: false,
-    eyeSeparation: 0.12,
-    convergenceDistance: 4.2,
-    redGain: 1,
-    cyanGain: 0.82,
-    preserveBrightness: false,
-  },
+  stereoSettings: { ...DEFAULT_STEREO_SETTINGS },
   autoplay: false,
   selectedPreset: undefined,
   selectedGate: "h",
@@ -220,6 +215,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
   setStereoSettings: (settings) => set((state) => ({ stereoSettings: { ...state.stereoSettings, ...settings } })),
+  resetStereoSettings: () => set({ stereoSettings: { ...DEFAULT_STEREO_SETTINGS } }),
   setSelectedGate: (gate) => set({ selectedGate: gate }),
   setRotationAngleDegrees: (degrees) => set({ rotationAngleDegrees: Number.isFinite(degrees) ? degrees : 0 }),
   setNoiseProbability: (probability) => set({ noiseProbability: clamp(Number.isFinite(probability) ? probability : 0, 0, 1) }),
