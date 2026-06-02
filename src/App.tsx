@@ -161,6 +161,7 @@ export function App() {
               onChange={(event) => {
                 const preset = event.currentTarget.value as PresetName;
                 if (preset) loadPreset(preset);
+                event.currentTarget.blur();
               }}
             >
               <option value="">Choose circuit</option>

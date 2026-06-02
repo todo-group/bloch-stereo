@@ -967,6 +967,8 @@ Implemented keyboard mappings:
 - rotate Bloch view while held: `C` plus mouse movement
 - zoom Bloch view while held: `Z` plus vertical mouse movement
 
+Loading a preset releases focus from the preset pull-down so arrow-key step controls work immediately after selection.
+
 The repository includes `scripts/generate-streamdeck-mk2.mjs`, exposed as:
 
 ```sh
