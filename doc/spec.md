@@ -694,11 +694,12 @@ Current transition duration:
 Interpolation:
 
 ```txt
-r(t) = (1 - s(t)) r0 + s(t) r1
+r(t) = lerp(|r0|, |r1|, s(t)) * slerp(normalize(r0), normalize(r1), s(t))
 s(t) = 3t^2 - 2t^3
 ```
 
-Mixed-state vectors are not normalized during interpolation.
+Equal-length vectors preserve their length during interpolation instead of cutting through the Bloch sphere interior.
+Mixed-state vectors are not normalized during interpolation; their visual length interpolates between exact reduced-state lengths.
 
 ### Camera Interaction
 

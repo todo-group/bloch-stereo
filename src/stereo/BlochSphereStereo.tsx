@@ -37,6 +37,7 @@ const MIXED_STATE_MARKER_THRESHOLD = 0.05;
 const STANDARD_CAMERA_RADIUS = 6.2;
 const RESET_CAMERA_YAW = 0;
 const RESET_CAMERA_PITCH = 0;
+const DIRECTION_EPSILON = 1e-6;
 
 export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings, activeStep }: BlochSphereStereoProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -296,7 +297,7 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
     const eased = elapsed * elapsed * (3 - 2 * elapsed);
     const current = animation.to.map((target, index) => {
       const from = animation.from[index] ?? new THREE.Vector3(0, 0, 1);
-      return from.clone().lerp(target, eased);
+      return interpolateBlochVector(from, target, eased);
     });
     currentRef.current = current;
     rigsRef.current.forEach((rig, index) => {
@@ -602,6 +603,51 @@ function createLineLoop(points: THREE.Vector3[]): THREE.Line {
 
 function toVector3(vector: BlochVector): THREE.Vector3 {
   return new THREE.Vector3(vector.x, vector.y, vector.z);
+}
+
+function interpolateBlochVector(from: THREE.Vector3, to: THREE.Vector3, amount: number): THREE.Vector3 {
+  const fromLength = from.length();
+  const toLength = to.length();
+  const length = fromLength + (toLength - fromLength) * amount;
+
+  if (length <= DIRECTION_EPSILON) {
+    return new THREE.Vector3(0, 0, 0);
+  }
+
+  if (fromLength <= DIRECTION_EPSILON) {
+    return to.clone().normalize().multiplyScalar(length);
+  }
+
+  if (toLength <= DIRECTION_EPSILON) {
+    return from.clone().normalize().multiplyScalar(length);
+  }
+
+  const fromDirection = from.clone().normalize();
+  const toDirection = to.clone().normalize();
+  const dot = clamp(fromDirection.dot(toDirection), -1, 1);
+
+  if (dot > 1 - DIRECTION_EPSILON) {
+    return fromDirection.lerp(toDirection, amount).normalize().multiplyScalar(length);
+  }
+
+  if (dot < -1 + DIRECTION_EPSILON) {
+    const tangent =
+      Math.abs(fromDirection.x) < 0.8
+        ? new THREE.Vector3(1, 0, 0)
+        : new THREE.Vector3(0, 1, 0);
+    tangent.sub(fromDirection.clone().multiplyScalar(tangent.dot(fromDirection))).normalize();
+    return fromDirection
+      .multiplyScalar(Math.cos(Math.PI * amount))
+      .add(tangent.multiplyScalar(Math.sin(Math.PI * amount)))
+      .multiplyScalar(length);
+  }
+
+  const angle = Math.acos(dot);
+  const relativeDirection = toDirection.sub(fromDirection.clone().multiplyScalar(dot)).normalize();
+  return fromDirection
+    .multiplyScalar(Math.cos(angle * amount))
+    .add(relativeDirection.multiplyScalar(Math.sin(angle * amount)))
+    .multiplyScalar(length);
 }
 
 function clamp(value: number, min: number, max: number): number {
