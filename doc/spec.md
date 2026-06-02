@@ -733,10 +733,12 @@ The exact simulator state is not modified for visual interpolation.
 - colored Bloch vectors
 - colorful but restrained correlation matrix cells
 - full brightness rendering
+- orthographic camera projection so parallel grid and guide lines remain visually parallel
 
 ### Red-Green/Cyan Stereo Mode
 
 Stereo mode uses a local adjustable anaglyph effect based on Three.js `AnaglyphEffect`.
+Stereo rendering uses perspective camera projection to preserve comfortable depth cues.
 
 The UI exposes:
 

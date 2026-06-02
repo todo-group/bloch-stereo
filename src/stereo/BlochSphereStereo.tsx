@@ -40,13 +40,15 @@ const RESET_CAMERA_PITCH = 0;
 const TOP_CAMERA_PITCH = Math.PI / 2 - 0.01;
 const BOTTOM_CAMERA_PITCH = -TOP_CAMERA_PITCH;
 const DIRECTION_EPSILON = 1e-6;
+const SPHERE_SPACING = 2.45;
 
 export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings, activeStep }: BlochSphereStereoProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const effectRef = useRef<AdjustableAnaglyphEffect | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const perspectiveCameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const orthographicCameraRef = useRef<THREE.OrthographicCamera | null>(null);
   const rigsRef = useRef<SphereRig[]>([]);
   const currentRef = useRef<THREE.Vector3[]>(vectors.map(toVector3));
   const animationRef = useRef<AnimationState>({
@@ -67,6 +69,7 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
     pitchVelocity: 0,
   });
   const pointerRef = useRef({ dragging: false, x: 0, y: 0 });
+  const viewportRef = useRef({ width: 1, height: 1, aspect: 1 });
   const keyboardCameraRef = useRef<{
     mode: "rotate" | "zoom" | null;
     x: number;
@@ -104,7 +107,8 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
     const effect = new AdjustableAnaglyphEffect(renderer);
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0b1020);
-    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    const perspectiveCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    const orthographicCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
     const ambient = new THREE.AmbientLight(0xffffff, 1.4);
     const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
     keyLight.position.set(3, 5, 4);
@@ -117,17 +121,21 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
     rendererRef.current = renderer;
     effectRef.current = effect;
     sceneRef.current = scene;
-    cameraRef.current = camera;
+    perspectiveCameraRef.current = perspectiveCamera;
+    orthographicCameraRef.current = orthographicCamera;
     rigsRef.current = rigs;
 
     const resize = () => {
       const bounds = mount.getBoundingClientRect();
       const width = Math.max(1, Math.floor(bounds.width));
       const height = Math.max(1, Math.floor(bounds.height));
+      const aspect = width / height;
+      viewportRef.current = { width, height, aspect };
       renderer.setSize(width, height, false);
       effect.setSize(width, height);
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
+      perspectiveCamera.aspect = aspect;
+      perspectiveCamera.updateProjectionMatrix();
+      updateOrthographicProjection(orthographicCamera, aspect, cameraMotion.current.radius, vectors.length);
     };
     const resizeObserver = new ResizeObserver(resize);
 
@@ -228,14 +236,16 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
     const render = (time: number) => {
       frame = window.requestAnimationFrame(render);
       updateVectors(time);
-      updateCamera(camera);
       if (modeRef.current === "anaglyph-red-green") {
+        updateCamera(perspectiveCamera);
         effect.eyeSeparation = stereoSettingsRef.current.eyeSeparation;
         effect.redGain = stereoSettingsRef.current.redGain;
         effect.cyanGain = stereoSettingsRef.current.cyanGain;
-        effect.render(scene, camera);
+        effect.render(scene, perspectiveCamera);
       } else {
-        renderer.render(scene, camera);
+        updateCamera(orthographicCamera);
+        updateOrthographicProjection(orthographicCamera, viewportRef.current.aspect, cameraMotion.current.radius, vectors.length);
+        renderer.render(scene, orthographicCamera);
       }
     };
     frame = window.requestAnimationFrame(render);
@@ -335,7 +345,7 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
     });
   }
 
-  function updateCamera(camera: THREE.PerspectiveCamera) {
+  function updateCamera(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera) {
     const motion = cameraMotion.current;
     if (modeRef.current === "anaglyph-red-green") {
       const stereoRadius = clamp(4.6 + vectors.length * 0.35, 4.8, 8.2);
@@ -366,15 +376,16 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
       -Math.cos(motion.yaw) * Math.cos(motion.pitch) * motion.radius,
       Math.sin(motion.pitch) * motion.radius,
     );
-    camera.focus = modeRef.current === "anaglyph-red-green" ? stereoSettingsRef.current.convergenceDistance : motion.radius;
+    if (camera instanceof THREE.PerspectiveCamera) {
+      camera.focus = modeRef.current === "anaglyph-red-green" ? stereoSettingsRef.current.convergenceDistance : motion.radius;
+    }
     camera.lookAt(0, 0, 0);
   }
 }
 
 function createSphereRig(index: number, total: number): SphereRig {
   const root = new THREE.Group();
-  const spacing = 2.45;
-  root.position.x = (index - (total - 1) / 2) * spacing;
+  root.position.x = (index - (total - 1) / 2) * SPHERE_SPACING;
 
   const sphere = new THREE.Mesh(
     new THREE.SphereGeometry(1, 48, 32),
@@ -635,6 +646,25 @@ function createLineLoop(points: THREE.Vector3[]): THREE.Line {
 
 function toVector3(vector: BlochVector): THREE.Vector3 {
   return new THREE.Vector3(vector.x, vector.y, vector.z);
+}
+
+function updateOrthographicProjection(
+  camera: THREE.OrthographicCamera,
+  aspect: number,
+  radius: number,
+  sphereCount: number,
+) {
+  const sphereWidth = Math.max(0, sphereCount - 1) * SPHERE_SPACING + 2.4;
+  const minimumViewHeight = Math.max(3.2, sphereWidth / Math.max(0.5, aspect) + 0.35);
+  const zoomScale = radius / STANDARD_CAMERA_RADIUS;
+  const viewHeight = clamp(minimumViewHeight * zoomScale, 2.8, 14);
+  const viewWidth = viewHeight * aspect;
+
+  camera.left = -viewWidth / 2;
+  camera.right = viewWidth / 2;
+  camera.top = viewHeight / 2;
+  camera.bottom = -viewHeight / 2;
+  camera.updateProjectionMatrix();
 }
 
 function interpolateBlochVector(from: THREE.Vector3, to: THREE.Vector3, amount: number): THREE.Vector3 {
