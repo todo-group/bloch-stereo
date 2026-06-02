@@ -711,6 +711,7 @@ Implemented camera behavior:
 - wheel changes camera radius
 - camera always looks at the scene origin
 - camera reset button restores the Bloch view with `|0>` on the screen-up axis
+- top and bottom view buttons show the Bloch sphere from near the positive and negative Z axes
 - the renderer moves the camera slightly closer when stereo mode is active
 - stereo focus is exposed as a user-adjustable value
 

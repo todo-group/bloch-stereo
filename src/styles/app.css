@@ -499,10 +499,15 @@ input[type="number"] {
   filter: saturate(0.82) contrast(1.05);
 }
 
-.camera-reset {
+.camera-view-controls {
   position: absolute;
   top: 14px;
   right: 14px;
+  display: flex;
+  gap: 8px;
+}
+
+.camera-view-controls button {
   min-height: 40px;
   border-color: rgba(255, 255, 255, 0.2);
   background: rgba(16, 24, 39, 0.82);
@@ -685,6 +690,13 @@ input[type="number"] {
 
   .transport button {
     min-width: 94px;
+  }
+
+  .camera-view-controls {
+    top: 64px;
+    left: 14px;
+    right: auto;
+    flex-wrap: wrap;
   }
 
   .gate-group {

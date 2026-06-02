@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { RotateCcw } from "lucide-react";
+import { ArrowDown, ArrowUp, RotateCcw } from "lucide-react";
 import * as THREE from "three";
 import { AdjustableAnaglyphEffect } from "./AdjustableAnaglyphEffect";
 import type { BlochVector, DisplayMode, StereoSettings } from "../circuit/types";
@@ -37,6 +37,8 @@ const MIXED_STATE_MARKER_THRESHOLD = 0.05;
 const STANDARD_CAMERA_RADIUS = 6.2;
 const RESET_CAMERA_YAW = 0;
 const RESET_CAMERA_PITCH = 0;
+const TOP_CAMERA_PITCH = Math.PI / 2 - 0.01;
+const BOTTOM_CAMERA_PITCH = -TOP_CAMERA_PITCH;
 const DIRECTION_EPSILON = 1e-6;
 
 export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings, activeStep }: BlochSphereStereoProps) {
@@ -57,6 +59,8 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
   const cameraMotion = useRef({
     yaw: RESET_CAMERA_YAW,
     pitch: RESET_CAMERA_PITCH,
+    targetYaw: null as number | null,
+    targetPitch: null as number | null,
     radius: STANDARD_CAMERA_RADIUS,
     targetRadius: STANDARD_CAMERA_RADIUS,
     yawVelocity: 0,
@@ -139,6 +143,8 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
       pointerRef.current.y = event.clientY;
       cameraMotion.current.yawVelocity += dx * 0.0009;
       cameraMotion.current.pitchVelocity += dy * 0.00075;
+      cameraMotion.current.targetYaw = null;
+      cameraMotion.current.targetPitch = null;
     };
     const onPointerUp = () => {
       pointerRef.current.dragging = false;
@@ -195,6 +201,8 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
       if (keyboardCamera.mode === "rotate") {
         cameraMotion.current.yawVelocity += dx * 0.0009;
         cameraMotion.current.pitchVelocity += dy * 0.00075;
+        cameraMotion.current.targetYaw = null;
+        cameraMotion.current.targetPitch = null;
       } else {
         cameraMotion.current.targetRadius = clamp(cameraMotion.current.targetRadius + dy * 0.012, 3.8, 12);
       }
@@ -265,10 +273,20 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
   return (
     <div className={displayMode === "anaglyph-red-green" ? "bloch-stage is-stereo" : "bloch-stage"}>
       <div ref={mountRef} className="bloch-canvas" />
-      <button type="button" className="camera-reset" onClick={resetCameraView} title="Reset Bloch sphere view">
-        <RotateCcw aria-hidden="true" />
-        View
-      </button>
+      <div className="camera-view-controls" aria-label="Bloch sphere camera views">
+        <button type="button" onClick={() => setCameraView(RESET_CAMERA_YAW, TOP_CAMERA_PITCH)} title="View from above">
+          <ArrowDown aria-hidden="true" />
+          Top
+        </button>
+        <button type="button" onClick={resetCameraView} title="Reset Bloch sphere view">
+          <RotateCcw aria-hidden="true" />
+          View
+        </button>
+        <button type="button" onClick={() => setCameraView(RESET_CAMERA_YAW, BOTTOM_CAMERA_PITCH)} title="View from below">
+          <ArrowUp aria-hidden="true" />
+          Bottom
+        </button>
+      </div>
       <div className="sphere-labels" aria-hidden="true">
         {vectors.map((vector, index) => (
           <span key={index}>
@@ -280,15 +298,17 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
   );
 
   function resetCameraView() {
-    cameraMotion.current = {
-      yaw: RESET_CAMERA_YAW,
-      pitch: RESET_CAMERA_PITCH,
-      radius: cameraMotion.current.radius,
-      targetRadius: STANDARD_CAMERA_RADIUS,
-      yawVelocity: 0,
-      pitchVelocity: 0,
-    };
+    setCameraView(RESET_CAMERA_YAW, RESET_CAMERA_PITCH, STANDARD_CAMERA_RADIUS);
+  }
+
+  function setCameraView(yaw: number, pitch: number, targetRadius = cameraMotion.current.targetRadius) {
+    cameraMotion.current.targetYaw = yaw;
+    cameraMotion.current.targetPitch = pitch;
+    cameraMotion.current.targetRadius = targetRadius;
+    cameraMotion.current.yawVelocity = 0;
+    cameraMotion.current.pitchVelocity = 0;
     pointerRef.current.dragging = false;
+    keyboardCameraRef.current = { mode: null, x: 0, y: 0, initialized: false };
   }
 
   function updateVectors(time: number) {
@@ -325,7 +345,19 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
     }
     motion.radius += (motion.targetRadius - motion.radius) * 0.08;
     motion.yaw += motion.yawVelocity;
-    motion.pitch = clamp(motion.pitch + motion.pitchVelocity, -0.9, 0.9);
+    motion.pitch = clamp(motion.pitch + motion.pitchVelocity, BOTTOM_CAMERA_PITCH, TOP_CAMERA_PITCH);
+    if (motion.targetYaw !== null && motion.targetPitch !== null) {
+      const yawDelta = shortestAngleDelta(motion.yaw, motion.targetYaw);
+      const pitchDelta = motion.targetPitch - motion.pitch;
+      motion.yaw += yawDelta * 0.12;
+      motion.pitch = clamp(motion.pitch + pitchDelta * 0.12, BOTTOM_CAMERA_PITCH, TOP_CAMERA_PITCH);
+      if (Math.abs(yawDelta) < 0.001 && Math.abs(pitchDelta) < 0.001) {
+        motion.yaw = motion.targetYaw;
+        motion.pitch = motion.targetPitch;
+        motion.targetYaw = null;
+        motion.targetPitch = null;
+      }
+    }
     motion.yawVelocity *= pointerRef.current.dragging ? 0.82 : 0.94;
     motion.pitchVelocity *= pointerRef.current.dragging ? 0.82 : 0.94;
     camera.up.set(0, 0, 1);
@@ -652,4 +684,8 @@ function interpolateBlochVector(from: THREE.Vector3, to: THREE.Vector3, amount: 
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function shortestAngleDelta(from: number, to: number): number {
+  return Math.atan2(Math.sin(to - from), Math.cos(to - from));
 }
