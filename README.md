@@ -21,7 +21,7 @@ It focuses on small circuits where reduced density matrices, measurement collaps
 
 - OpenQASM 2.0 import/export
 - Step-by-step circuit execution with previous, next, reset, autoplay, and arrow-key navigation
-- Stream Deck-friendly keyboard controls: `ArrowLeft`, `ArrowRight`, `R`/`Home`, `E`, `+`, `C`, and `Z`
+- Stream Deck-friendly controls: `ArrowLeft`, `S`, `ArrowRight`, `R`/`Home`, `E`, `+`, `T`, `C`, `V`, `Z`, and `B`
 - Density-matrix simulation backend by default, with a statevector backend still available in the simulator API
 - Density-matrix noise channels: `depolarize(p)`, `dephase(p)`, and `ampdamp(p)`
 - Smooth Bloch-vector animation from reduced single-qubit density matrices
@@ -72,22 +72,26 @@ The parser and simulator also support `id` and `swap`. The SWAP button is intent
 Core actions can be triggered by configuring Stream Deck buttons to send keyboard shortcuts:
 
 - previous step: `ArrowLeft`
+- toggle stereo mode: `S`
 - next step: `ArrowRight`
 - reset execution: `R` or `Home`
 - toggle circuit editor panel: `E`
 - add selected gate: `+` or numpad `+`
+- top Bloch view: `T`
 - rotate Bloch view while held: `C` + mouse move
+- restore Bloch view: `V`
 - zoom Bloch view while held: `Z` + vertical mouse move
+- bottom Bloch view: `B`
 
 Direct Stream Deck SDK integration is still future work.
 
-Generate MK.2 key icons and a keymap file:
+Generate MK.2 key icons, a keymap file, and an importable Stream Deck profile:
 
 ```sh
 npm run streamdeck:mk2
 ```
 
-The generated assets are written to `streamdeck/mk2/`.
+The generated assets are written to `streamdeck/mk2/`, including `Bloch Stereo MK2.streamDeckProfile` for direct import.
 
 ## Visualization
 

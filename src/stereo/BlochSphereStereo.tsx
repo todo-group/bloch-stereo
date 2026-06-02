@@ -192,6 +192,15 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
         if (keyboardCameraRef.current.mode !== "zoom") {
           keyboardCameraRef.current = { mode: "zoom", x: 0, y: 0, initialized: false };
         }
+      } else if (event.key === "v" || event.key === "V") {
+        event.preventDefault();
+        resetCameraView();
+      } else if (event.key === "t" || event.key === "T") {
+        event.preventDefault();
+        setCameraView(RESET_CAMERA_YAW, TOP_CAMERA_PITCH);
+      } else if (event.key === "b" || event.key === "B") {
+        event.preventDefault();
+        setCameraView(RESET_CAMERA_YAW, BOTTOM_CAMERA_PITCH);
       }
     };
     const onKeyUp = (event: KeyboardEvent) => {

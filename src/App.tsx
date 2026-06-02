@@ -100,11 +100,14 @@ export function App() {
       } else if (event.key === "e" || event.key === "E") {
         event.preventDefault();
         setEditorOpen((open) => !open);
+      } else if (event.key === "s" || event.key === "S") {
+        event.preventDefault();
+        setDisplayMode(displayMode === "2d" ? "anaglyph-red-green" : "2d");
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [addGate, nextStep, previousStep, resetExecution, setEditorOpen]);
+  }, [addGate, displayMode, nextStep, previousStep, resetExecution, setDisplayMode, setEditorOpen]);
 
   const toggleVisibleQubit = (qubit: number) => {
     setVisibleQubits((current) => {

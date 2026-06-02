@@ -1,11 +1,13 @@
 {
   "device": "Elgato Stream Deck MK.2",
   "application": "Bloch Stereo",
-  "usage": "Assign each Stream Deck key to the Hotkey action shown in `hotkey`, then set the icon file as the key image.",
+  "usage": "Assign each Stream Deck key to the action shown in `action`, then set the icon file as the key image.",
+  "profile": "Bloch Stereo MK2.streamDeckProfile",
   "keys": [
     {
       "title": "Prev",
-      "hotkey": "ArrowLeft",
+      "action": "Hotkey",
+      "value": "ArrowLeft",
       "icon": "prev.svg",
       "position": {
         "row": 1,
@@ -13,8 +15,19 @@
       }
     },
     {
+      "title": "Stereo",
+      "action": "Hotkey",
+      "value": "S",
+      "icon": "stereo.svg",
+      "position": {
+        "row": 1,
+        "column": 3
+      }
+    },
+    {
       "title": "Next",
-      "hotkey": "ArrowRight",
+      "action": "Hotkey",
+      "value": "ArrowRight",
       "icon": "next.svg",
       "position": {
         "row": 1,
@@ -23,7 +36,8 @@
     },
     {
       "title": "Reset",
-      "hotkey": "R or Home",
+      "action": "Hotkey",
+      "value": "R or Home",
       "icon": "reset.svg",
       "position": {
         "row": 2,
@@ -32,7 +46,8 @@
     },
     {
       "title": "Editor",
-      "hotkey": "E",
+      "action": "Hotkey",
+      "value": "E",
       "icon": "editor.svg",
       "position": {
         "row": 2,
@@ -41,7 +56,8 @@
     },
     {
       "title": "Add",
-      "hotkey": "+",
+      "action": "Hotkey",
+      "value": "+",
       "icon": "add.svg",
       "position": {
         "row": 2,
@@ -49,8 +65,19 @@
       }
     },
     {
+      "title": "Top",
+      "action": "Hotkey",
+      "value": "T",
+      "icon": "top.svg",
+      "position": {
+        "row": 3,
+        "column": 1
+      }
+    },
+    {
       "title": "Rotate",
-      "hotkey": "C",
+      "action": "Hotkey",
+      "value": "C",
       "icon": "rotate.svg",
       "position": {
         "row": 3,
@@ -58,12 +85,33 @@
       }
     },
     {
+      "title": "View",
+      "action": "Hotkey",
+      "value": "V",
+      "icon": "view.svg",
+      "position": {
+        "row": 3,
+        "column": 3
+      }
+    },
+    {
       "title": "Zoom",
-      "hotkey": "Z",
+      "action": "Hotkey",
+      "value": "Z",
       "icon": "zoom.svg",
       "position": {
         "row": 3,
         "column": 4
+      }
+    },
+    {
+      "title": "Bottom",
+      "action": "Hotkey",
+      "value": "B",
+      "icon": "bottom.svg",
+      "position": {
+        "row": 3,
+        "column": 5
       }
     }
   ]

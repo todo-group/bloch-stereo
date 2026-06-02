@@ -61,7 +61,7 @@ Design priorities:
 - conditional execution using full classical-register integer values such as `if (c==1)`
 - execution snapshots for every step
 - previous step, next step, reset, autoplay
-- Stream Deck-friendly keyboard shortcuts for previous, next, reset, editor hide/show, gate insertion, and held camera control
+- Stream Deck-friendly controls for previous, next, mouse click, reset, editor hide/show, gate insertion, top/view/bottom camera presets, and held camera control
 - Three.js Bloch sphere renderer
 - semi-transparent Bloch sphere globes with latitude/longitude grids
 - smoothstep Bloch-vector animation over 400 ms
@@ -182,7 +182,7 @@ Target future macro device:
 
 - Elgato Stream Deck MK.2
 
-The current version supports Stream Deck use through ordinary keyboard actions. It does not yet communicate with Stream Deck hardware through the SDK.
+The current version supports Stream Deck use through ordinary keyboard and mouse-button actions. It does not yet communicate with Stream Deck hardware through the SDK.
 
 ### Implemented Interaction Model
 
@@ -955,17 +955,21 @@ The current visualization shows state evolution, collapse, classical bits, corre
 
 ## Stream Deck Plan
 
-Stream Deck can currently trigger core actions by sending keyboard shortcuts. Direct Stream Deck SDK integration is not implemented yet.
+Stream Deck can currently trigger core actions by sending keyboard shortcuts and a mouse-button action. Direct Stream Deck SDK integration is not implemented yet.
 
 Implemented keyboard mappings:
 
 - previous step: `ArrowLeft`
+- mouse left click: Stream Deck mouse-button left click action
 - next step: `ArrowRight`
 - reset execution: `R` or `Home`
 - toggle circuit editor panel: `E`
 - add selected gate: `+` or numpad `+`
+- top Bloch view: `T`
 - rotate Bloch view while held: `C` plus mouse movement
+- restore Bloch view: `V`
 - zoom Bloch view while held: `Z` plus vertical mouse movement
+- bottom Bloch view: `B`
 
 Loading a preset releases focus from the preset pull-down so arrow-key step controls work immediately after selection.
 
@@ -975,7 +979,7 @@ The repository includes `scripts/generate-streamdeck-mk2.mjs`, exposed as:
 npm run streamdeck:mk2
 ```
 
-It generates SVG key images and a `keymap.json` guide under `streamdeck/mk2/`.
+It generates SVG key images, a `keymap.json` guide, and an importable `Bloch Stereo MK2.streamDeckProfile` under `streamdeck/mk2/`.
 
 Target actions:
 

@@ -21,7 +21,7 @@ Bloch Stereo は、教育・デモ・科学館展示向けのブラウザベー�
 
 - OpenQASM 2.0 の import/export
 - ステップ実行、前後移動、リセット、オートプレイ、左右矢印キーによる移動
-- Stream Deck で使いやすい keyboard control: `ArrowLeft`, `ArrowRight`, `R`/`Home`, `E`, `+`, `C`, `Z`
+- Stream Deck で使いやすい control: `ArrowLeft`, `S`, `ArrowRight`, `R`/`Home`, `E`, `+`, `T`, `C`, `V`, `Z`, `B`
 - density-matrix backend をデフォルトにしたシミュレーション
 - density-matrix noise channel: `depolarize(p)`, `dephase(p)`, `ampdamp(p)`
 - simulator API では statevector backend も利用可能
@@ -76,22 +76,26 @@ parser と simulator は `id` と `swap` も対応しています。SWAP button 
 Stream Deck の各ボタンに通常の keyboard shortcut を送る設定をすれば、以下の操作を呼び出せます。
 
 - previous step: `ArrowLeft`
+- stereo mode の切り替え: `S`
 - next step: `ArrowRight`
 - reset execution: `R` または `Home`
 - circuit editor panel の hide/show: `E`
 - add selected gate: `+` または numpad `+`
+- Bloch view の top view: `T`
 - Bloch view の回転: `C` を押しながら mouse move
+- Bloch view の restore: `V`
 - Bloch view の zoom: `Z` を押しながら mouse を上下に移動
+- Bloch view の bottom view: `B`
 
 Stream Deck SDK との直接連携は今後の拡張です。
 
-MK.2 用の key icon と keymap file は以下で生成できます。
+MK.2 用の key icon、keymap file、import 可能な Stream Deck profile は以下で生成できます。
 
 ```sh
 npm run streamdeck:mk2
 ```
 
-生成物は `streamdeck/mk2/` に出力されます。
+生成物は `streamdeck/mk2/` に出力されます。`Bloch Stereo MK2.streamDeckProfile` は Stream Deck app に直接 import できます。
 
 ## 可視化
 
