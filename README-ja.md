@@ -81,6 +81,7 @@ Stream Deck の各ボタンに通常の keyboard shortcut を送る設定をす�
 - reset execution: `R` または `Home`
 - circuit editor panel の hide/show: `E`
 - add selected gate: `+` または numpad `+`
+- pointer 下の button / selector の実行: `Space`
 - Bloch view の top view: `T`
 - Bloch view の回転: `C` を押しながら mouse move
 - Bloch view の restore: `V`

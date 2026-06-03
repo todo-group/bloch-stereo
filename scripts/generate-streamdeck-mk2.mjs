@@ -20,6 +20,7 @@ const hotkeyMap = {
   E: { NativeCode: 69, QTKeyCode: 69, VKeyCode: 69 },
   R: { NativeCode: 82, QTKeyCode: 82, VKeyCode: 82 },
   S: { NativeCode: 83, QTKeyCode: 83, VKeyCode: 83 },
+  Space: { NativeCode: 32, QTKeyCode: 32, VKeyCode: 32 },
   T: { NativeCode: 84, QTKeyCode: 84, VKeyCode: 84 },
   V: { NativeCode: 86, QTKeyCode: 86, VKeyCode: 86 },
   Z: { NativeCode: 90, QTKeyCode: 90, VKeyCode: 90 },
@@ -95,6 +96,15 @@ const keys = [
     glyph: "▯",
     color: "#a78bfa",
     position: { row: 2, column: 3 },
+  },
+  {
+    file: "space.svg",
+    title: "Click",
+    subtitle: "Space",
+    key: "Space",
+    glyph: "▭",
+    color: "#34d399",
+    position: { row: 2, column: 1 },
   },
   {
     file: "add.svg",
@@ -190,7 +200,7 @@ Generated files for assigning Stream Deck keys to Bloch Stereo keyboard shortcut
 
 \`\`\`txt
 [   ] [Prev] [Stereo][Next] [   ]
-[   ] [Reset][Edit ][Add ] [   ]
+[Click][Reset][Edit ][Add ] [   ]
 [Top] [Rotate][View ][Zoom] [Bottom]
 \`\`\`
 
@@ -224,7 +234,7 @@ ${keys.map((key) => `| ${key.title} ${key.subtitle} | ${key.action ?? "Hotkey"} 
 
    \`\`\`txt
    [   ] [Prev] [Stereo][Next] [   ]
-   [   ] [Reset][Edit ][Add ] [   ]
+   [Click][Reset][Edit ][Add ] [   ]
    [Top] [Rotate][View ][Zoom] [Bottom]
    \`\`\`
 
@@ -235,6 +245,7 @@ ${keys.map((key) => `| ${key.title} ${key.subtitle} | ${key.action ?? "Hotkey"} 
    - Next: **System > Hotkey**, \`ArrowRight\`
    - Reset: **System > Hotkey**, \`R\` or \`Home\`
    - Editor: **System > Hotkey**, \`E\`
+   - Click: **System > Hotkey**, \`Space\`
    - Add: **System > Hotkey**, \`+\`
    - Top: **System > Hotkey**, \`T\`
    - Rotate: **System > Hotkey**, \`C\`
@@ -249,6 +260,7 @@ ${keys.map((key) => `| ${key.title} ${key.subtitle} | ${key.action ?? "Hotkey"} 
    - Next: \`streamdeck/mk2/next.svg\`
    - Reset: \`streamdeck/mk2/reset.svg\`
    - Editor: \`streamdeck/mk2/editor.svg\`
+   - Click: \`streamdeck/mk2/space.svg\`
    - Add: \`streamdeck/mk2/add.svg\`
    - Top: \`streamdeck/mk2/top.svg\`
    - Rotate: \`streamdeck/mk2/rotate.svg\`
@@ -402,6 +414,11 @@ function drawGlyph(bitmap, glyph, cx, cy, color) {
   }
   if (glyph === "▯") {
     strokeRoundedRect(bitmap, cx - 20, cy - 17, 40, 34, 6, color, 1, 5);
+    return;
+  }
+  if (glyph === "▭") {
+    strokeRoundedRect(bitmap, cx - 27, cy - 12, 54, 24, 7, color, 1, 5);
+    fillRect(bitmap, cx - 17, cy + 5, 34, 5, color, 1);
     return;
   }
   if (glyph === "⇅") {

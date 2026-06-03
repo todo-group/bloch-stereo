@@ -24,6 +24,27 @@ const presetOptions: Array<{ value: PresetName; label: string }> = [
   { value: "teleportation", label: "Quantum teleportation" },
 ];
 
+type HoverActivatableElement = HTMLButtonElement | HTMLSelectElement;
+
+function activateHoveredControl(): boolean {
+  const hoveredControl = document.querySelector<HoverActivatableElement>("button:hover:not(:disabled), select:hover:not(:disabled)");
+  if (!hoveredControl) return false;
+
+  if (hoveredControl instanceof HTMLSelectElement) {
+    hoveredControl.focus();
+    const showPicker = Reflect.get(hoveredControl, "showPicker");
+    if (typeof showPicker === "function") {
+      showPicker.call(hoveredControl);
+    } else {
+      hoveredControl.click();
+    }
+    return true;
+  }
+
+  hoveredControl.click();
+  return true;
+}
+
 export function App() {
   const {
     circuit,
@@ -85,7 +106,11 @@ export function App() {
       ) {
         return;
       }
-      if (event.key === "ArrowLeft") {
+      if (event.key === " " || event.code === "Space") {
+        if (activateHoveredControl()) {
+          event.preventDefault();
+        }
+      } else if (event.key === "ArrowLeft") {
         event.preventDefault();
         previousStep();
       } else if (event.key === "ArrowRight") {

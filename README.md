@@ -77,6 +77,7 @@ Core actions can be triggered by configuring Stream Deck buttons to send keyboar
 - reset execution: `R` or `Home`
 - toggle circuit editor panel: `E`
 - add selected gate: `+` or numpad `+`
+- activate the hovered button or selector: `Space`
 - top Bloch view: `T`
 - rotate Bloch view while held: `C` + mouse move
 - restore Bloch view: `V`

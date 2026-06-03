@@ -61,7 +61,7 @@ Design priorities:
 - conditional execution using full classical-register integer values such as `if (c==1)`
 - execution snapshots for every step
 - previous step, next step, reset, autoplay
-- Stream Deck-friendly controls for previous, next, mouse click, reset, editor hide/show, gate insertion, top/view/bottom camera presets, and held camera control
+- Stream Deck-friendly controls for previous, next, hovered button/select activation, mouse click, reset, editor hide/show, gate insertion, top/view/bottom camera presets, and held camera control
 - Three.js Bloch sphere renderer
 - semi-transparent Bloch sphere globes with latitude/longitude grids
 - smoothstep Bloch-vector animation over 400 ms
@@ -190,6 +190,7 @@ The current version supports Stream Deck use through ordinary keyboard and mouse
 - left and right arrow keys move to the previous and next execution step
 - `R` or `Home` resets execution
 - `+` or numpad `+` appends the selected gate
+- `Space` activates the hovered button or selector when focus is not inside a text entry control
 - `E` toggles the left circuit editor panel
 - holding `C` while moving the mouse rotates the Bloch camera
 - holding `Z` while moving the mouse vertically zooms the Bloch camera
@@ -965,6 +966,7 @@ Implemented keyboard mappings:
 - reset execution: `R` or `Home`
 - toggle circuit editor panel: `E`
 - add selected gate: `+` or numpad `+`
+- activate hovered button or selector: `Space`
 - top Bloch view: `T`
 - rotate Bloch view while held: `C` plus mouse movement
 - restore Bloch view: `V`

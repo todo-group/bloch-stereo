@@ -55,6 +55,16 @@
       }
     },
     {
+      "title": "Click",
+      "action": "Hotkey",
+      "value": "Space",
+      "icon": "space.svg",
+      "position": {
+        "row": 2,
+        "column": 1
+      }
+    },
+    {
       "title": "Add",
       "action": "Hotkey",
       "value": "+",

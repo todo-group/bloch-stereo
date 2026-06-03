@@ -6,7 +6,7 @@ Generated files for assigning Stream Deck keys to Bloch Stereo keyboard shortcut
 
 ```txt
 [   ] [Prev] [Stereo][Next] [   ]
-[   ] [Reset][Edit ][Add ] [   ]
+[Click][Reset][Edit ][Add ] [   ]
 [Top] [Rotate][View ][Zoom] [Bottom]
 ```
 
@@ -19,6 +19,7 @@ Generated files for assigning Stream Deck keys to Bloch Stereo keyboard shortcut
 | Next Step | Hotkey | `ArrowRight` | `next.svg` |
 | Reset Run | Hotkey | `R or Home` | `reset.svg` |
 | Editor Toggle | Hotkey | `E` | `editor.svg` |
+| Click Space | Hotkey | `Space` | `space.svg` |
 | Add Gate | Hotkey | `+` | `add.svg` |
 | Top View | Hotkey | `T` | `top.svg` |
 | Rotate Hold | Hotkey | `C` | `rotate.svg` |
@@ -50,7 +51,7 @@ Generated files for assigning Stream Deck keys to Bloch Stereo keyboard shortcut
 
    ```txt
    [   ] [Prev] [Stereo][Next] [   ]
-   [   ] [Reset][Edit ][Add ] [   ]
+   [Click][Reset][Edit ][Add ] [   ]
    [Top] [Rotate][View ][Zoom] [Bottom]
    ```
 
@@ -61,6 +62,7 @@ Generated files for assigning Stream Deck keys to Bloch Stereo keyboard shortcut
    - Next: **System > Hotkey**, `ArrowRight`
    - Reset: **System > Hotkey**, `R` or `Home`
    - Editor: **System > Hotkey**, `E`
+   - Click: **System > Hotkey**, `Space`
    - Add: **System > Hotkey**, `+`
    - Top: **System > Hotkey**, `T`
    - Rotate: **System > Hotkey**, `C`
@@ -75,6 +77,7 @@ Generated files for assigning Stream Deck keys to Bloch Stereo keyboard shortcut
    - Next: `streamdeck/mk2/next.svg`
    - Reset: `streamdeck/mk2/reset.svg`
    - Editor: `streamdeck/mk2/editor.svg`
+   - Click: `streamdeck/mk2/space.svg`
    - Add: `streamdeck/mk2/add.svg`
    - Top: `streamdeck/mk2/top.svg`
    - Rotate: `streamdeck/mk2/rotate.svg`
