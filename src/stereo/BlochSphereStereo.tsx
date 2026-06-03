@@ -8,6 +8,7 @@ import { DEFAULT_GRID_OPTIONS } from "../circuit/types";
 type BlochSphereStereoProps = {
   vectors: BlochVector[];
   labels: string[];
+  qubitIndices: number[];
   displayMode: DisplayMode;
   stereoSettings: StereoSettings;
   activeStep: number;
@@ -43,7 +44,7 @@ const BOTTOM_CAMERA_PITCH = -TOP_CAMERA_PITCH;
 const DIRECTION_EPSILON = 1e-6;
 const SPHERE_SPACING = 2.45;
 
-export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings, activeStep }: BlochSphereStereoProps) {
+export function BlochSphereStereo({ vectors, labels, qubitIndices, displayMode, stereoSettings, activeStep }: BlochSphereStereoProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const effectRef = useRef<AdjustableAnaglyphEffect | null>(null);
@@ -57,6 +58,7 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
     from: vectors.map(toVector3),
     to: vectors.map(toVector3),
   });
+  const previousQubitIndicesRef = useRef(qubitIndices);
   const modeRef = useRef(displayMode);
   const stereoSettingsRef = useRef(stereoSettings);
   const cameraMotion = useRef({
@@ -89,12 +91,24 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
   }, [stereoSettings]);
 
   useEffect(() => {
+    if (!sameNumberArray(previousQubitIndicesRef.current, qubitIndices)) {
+      const snappedVectors = targetVectors.map((vector) => vector.clone());
+      currentRef.current = snappedVectors.map((vector) => vector.clone());
+      animationRef.current = {
+        startedAt: performance.now(),
+        from: snappedVectors.map((vector) => vector.clone()),
+        to: snappedVectors.map((vector) => vector.clone()),
+      };
+      previousQubitIndicesRef.current = qubitIndices;
+      return;
+    }
+
     animationRef.current = {
       startedAt: performance.now(),
       from: currentRef.current.map((vector) => vector.clone()),
       to: targetVectors.map((vector) => vector.clone()),
     };
-  }, [targetVectors, activeStep]);
+  }, [targetVectors, activeStep, qubitIndices]);
 
   useEffect(() => {
     rigsRef.current.forEach((rig, index) => {
@@ -105,6 +119,12 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
       });
     });
   }, [labels]);
+
+  useEffect(() => {
+    rigsRef.current.forEach((rig, index) => {
+      updateRigVectorColor(rig, colorForQubitIndex(qubitIndices[index] ?? index));
+    });
+  }, [qubitIndices]);
 
   useEffect(() => {
     if (!mountRef.current) return undefined;
@@ -125,7 +145,9 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
     keyLight.position.set(3, 5, 4);
     scene.add(ambient, keyLight);
 
-    const rigs = vectors.map((_, index) => createSphereRig(index, vectors.length));
+    const rigs = vectors.map((_, index) =>
+      createSphereRig(index, vectors.length, labels[index] ?? `q${index}`, qubitIndices[index] ?? index),
+    );
     rigs.forEach((rig) => scene.add(rig.root));
     scene.add(createFloorGrid(vectors.length));
 
@@ -403,7 +425,7 @@ export function BlochSphereStereo({ vectors, labels, displayMode, stereoSettings
   }
 }
 
-function createSphereRig(index: number, total: number): SphereRig {
+function createSphereRig(index: number, total: number, label: string, qubitIndex: number): SphereRig {
   const root = new THREE.Group();
   root.position.x = (index - (total - 1) / 2) * SPHERE_SPACING;
 
@@ -425,10 +447,11 @@ function createSphereRig(index: number, total: number): SphereRig {
   root.add(createBoundingCube());
   root.add(createAxisLabels());
 
-  const arrow = createVectorArrow(index % 2 === 0 ? 0xffdc73 : 0x60d394);
+  const vectorColor = colorForQubitIndex(qubitIndex);
+  const arrow = createVectorArrow(vectorColor);
   root.add(arrow.root);
 
-  const mixedStateMarker = createMixedStateMarker(index % 2 === 0 ? 0xffdc73 : 0x60d394);
+  const mixedStateMarker = createMixedStateMarker(vectorColor);
   root.add(mixedStateMarker);
 
   const purityRing = new THREE.Mesh(
@@ -438,7 +461,7 @@ function createSphereRig(index: number, total: number): SphereRig {
   purityRing.rotation.x = Math.PI / 2;
   root.add(purityRing);
 
-  const qubitLabel = createTextSprite(`q${index}`, {
+  const qubitLabel = createTextSprite(label, {
     color: "#f6f7fb",
     background: "rgba(11, 16, 32, 0.72)",
     font: "800 52px system-ui, sans-serif",
@@ -448,6 +471,27 @@ function createSphereRig(index: number, total: number): SphereRig {
   root.add(qubitLabel);
 
   return { root, arrow, mixedStateMarker, purityRing, qubitLabel };
+}
+
+function colorForQubitIndex(qubitIndex: number): number {
+  return qubitIndex % 2 === 0 ? 0xffdc73 : 0x60d394;
+}
+
+function sameNumberArray(first: number[], second: number[]): boolean {
+  return first.length === second.length && first.every((value, index) => value === second[index]);
+}
+
+function updateRigVectorColor(rig: SphereRig, color: number) {
+  setMeshColor(rig.arrow.shaft, color);
+  setMeshColor(rig.arrow.head, color);
+  setMeshColor(rig.mixedStateMarker, color);
+}
+
+function setMeshColor(mesh: THREE.Mesh, color: number) {
+  const material = mesh.material;
+  if (material instanceof THREE.MeshBasicMaterial) {
+    material.color.setHex(color);
+  }
 }
 
 function createVectorArrow(color: number): VectorArrow {

@@ -288,6 +288,7 @@ export function App() {
           <BlochSphereStereo
             vectors={blochVectors}
             labels={effectiveVisibleQubits.map((qubit) => `q${qubit}`)}
+            qubitIndices={effectiveVisibleQubits}
             displayMode={displayMode}
             stereoSettings={stereoSettings}
             activeStep={currentStep}
