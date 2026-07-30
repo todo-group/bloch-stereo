@@ -155,6 +155,7 @@ export function App() {
           <div>
             <h1>Bloch Stereo</h1>
             <p>Quantum circuit editor</p>
+            <small className="app-version">v{__APP_VERSION__}</small>
           </div>
         </div>
         <div className="transport" aria-label="Execution controls">
