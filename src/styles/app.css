@@ -570,6 +570,39 @@ input[type="number"] {
   font-weight: 800;
 }
 
+.xr-entry-control {
+  position: absolute;
+  z-index: 6;
+  right: 14px;
+  bottom: 14px;
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+
+.xr-entry-control button,
+.xr-entry-control > span {
+  border: 1px solid rgba(125, 211, 252, 0.32);
+  border-radius: 8px;
+  background: rgba(14, 116, 144, 0.72);
+  color: #f6f7fb;
+  padding: 8px 12px;
+  backdrop-filter: blur(8px);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.xr-entry-control > span {
+  background: rgba(16, 24, 39, 0.82);
+  color: #9fb0c9;
+}
+
+.xr-entry-control .xr-error {
+  max-width: 320px;
+  border-color: rgba(252, 165, 165, 0.35);
+  color: #fecaca;
+}
+
 .sphere-labels {
   pointer-events: none;
   position: absolute;

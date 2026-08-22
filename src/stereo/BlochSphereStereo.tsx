@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, RotateCcw } from "lucide-react";
 import * as THREE from "three";
 import { AdjustableAnaglyphEffect } from "./AdjustableAnaglyphEffect";
 import type { BlochVector, DisplayMode, StereoSettings } from "../circuit/types";
-import { DEFAULT_GRID_OPTIONS } from "../circuit/types";
+import { BlochSceneContent, SPHERE_SPACING } from "./BlochSceneContent";
+import { probeImmersiveVr, type XrSupportState } from "../xr/XrCapability";
+import { XrSessionController } from "../xr/XrSessionController";
+import { XrScene, type XrSceneActions } from "../xr/XrScene";
+import type { XrPanelState } from "../xr/XrControlPanel";
 
 type BlochSphereStereoProps = {
   vectors: BlochVector[];
@@ -12,53 +16,32 @@ type BlochSphereStereoProps = {
   displayMode: DisplayMode;
   stereoSettings: StereoSettings;
   activeStep: number;
+  xrPanelState: Omit<XrPanelState, "qualityLabel">;
+  xrActions: Omit<XrSceneActions, "exitXr">;
 };
 
-type VectorArrow = {
-  root: THREE.Group;
-  shaft: THREE.Mesh;
-  head: THREE.Mesh;
-};
-
-type SphereRig = {
-  root: THREE.Group;
-  arrow: VectorArrow;
-  mixedStateMarker: THREE.Mesh;
-  purityRing: THREE.Mesh;
-  qubitLabel: THREE.Sprite;
-};
-
-type AnimationState = {
-  startedAt: number;
-  from: THREE.Vector3[];
-  to: THREE.Vector3[];
-};
-
-const TRANSITION_MS = 400;
-const MIXED_STATE_MARKER_THRESHOLD = 0.05;
 const STANDARD_CAMERA_RADIUS = 6.2;
 const RESET_CAMERA_YAW = 0;
 const RESET_CAMERA_PITCH = 0;
 const TOP_CAMERA_PITCH = Math.PI / 2 - 0.01;
 const BOTTOM_CAMERA_PITCH = -TOP_CAMERA_PITCH;
-const DIRECTION_EPSILON = 1e-6;
-const SPHERE_SPACING = 2.45;
 
-export function BlochSphereStereo({ vectors, labels, qubitIndices, displayMode, stereoSettings, activeStep }: BlochSphereStereoProps) {
+export function BlochSphereStereo({
+  vectors,
+  labels,
+  qubitIndices,
+  displayMode,
+  stereoSettings,
+  activeStep,
+  xrPanelState,
+  xrActions,
+}: BlochSphereStereoProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const effectRef = useRef<AdjustableAnaglyphEffect | null>(null);
-  const sceneRef = useRef<THREE.Scene | null>(null);
-  const perspectiveCameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const orthographicCameraRef = useRef<THREE.OrthographicCamera | null>(null);
-  const rigsRef = useRef<SphereRig[]>([]);
-  const currentRef = useRef<THREE.Vector3[]>(vectors.map(toVector3));
-  const animationRef = useRef<AnimationState>({
-    startedAt: performance.now(),
-    from: vectors.map(toVector3),
-    to: vectors.map(toVector3),
-  });
-  const previousQubitIndicesRef = useRef(qubitIndices);
+  const sceneContentRef = useRef<BlochSceneContent | null>(null);
+  const xrSceneRef = useRef<XrScene | null>(null);
+  const xrSessionControllerRef = useRef<XrSessionController | null>(null);
+  const xrRuntimeRef = useRef({ panelState: xrPanelState, actions: xrActions });
+  const previousQubitIndicesRef = useRef(qubitIndices.slice());
   const modeRef = useRef(displayMode);
   const stereoSettingsRef = useRef(stereoSettings);
   const cameraMotion = useRef({
@@ -79,8 +62,21 @@ export function BlochSphereStereo({ vectors, labels, qubitIndices, displayMode, 
     y: number;
     initialized: boolean;
   }>({ mode: null, x: 0, y: 0, initialized: false });
+  const [xrSupport, setXrSupport] = useState<XrSupportState>("checking");
+  const [xrStatus, setXrStatus] = useState<"idle" | "starting" | "presenting">("idle");
+  const [xrError, setXrError] = useState<string>();
 
-  const targetVectors = useMemo(() => vectors.map(toVector3), [vectors]);
+  xrRuntimeRef.current = { panelState: xrPanelState, actions: xrActions };
+
+  useEffect(() => {
+    let cancelled = false;
+    void probeImmersiveVr().then((support) => {
+      if (!cancelled) setXrSupport(support);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     modeRef.current = displayMode;
@@ -91,45 +87,28 @@ export function BlochSphereStereo({ vectors, labels, qubitIndices, displayMode, 
   }, [stereoSettings]);
 
   useEffect(() => {
-    if (!sameNumberArray(previousQubitIndicesRef.current, qubitIndices)) {
-      const snappedVectors = targetVectors.map((vector) => vector.clone());
-      currentRef.current = snappedVectors.map((vector) => vector.clone());
-      animationRef.current = {
-        startedAt: performance.now(),
-        from: snappedVectors.map((vector) => vector.clone()),
-        to: snappedVectors.map((vector) => vector.clone()),
-      };
-      previousQubitIndicesRef.current = qubitIndices;
-      return;
-    }
-
-    animationRef.current = {
-      startedAt: performance.now(),
-      from: currentRef.current.map((vector) => vector.clone()),
-      to: targetVectors.map((vector) => vector.clone()),
-    };
-  }, [targetVectors, activeStep, qubitIndices]);
+    const qubitSelectionChanged = !sameNumberArray(previousQubitIndicesRef.current, qubitIndices);
+    sceneContentRef.current?.setTargetVectors(vectors, qubitSelectionChanged);
+    previousQubitIndicesRef.current = qubitIndices.slice();
+  }, [vectors, activeStep, qubitIndices]);
 
   useEffect(() => {
-    rigsRef.current.forEach((rig, index) => {
-      updateTextSprite(rig.qubitLabel, labels[index] ?? `q${index}`, {
-        color: "#f6f7fb",
-        background: "rgba(11, 16, 32, 0.72)",
-        font: "800 52px system-ui, sans-serif",
-      });
-    });
+    sceneContentRef.current?.setLabels(labels);
   }, [labels]);
 
   useEffect(() => {
-    rigsRef.current.forEach((rig, index) => {
-      updateRigVectorColor(rig, colorForQubitIndex(qubitIndices[index] ?? index));
-    });
+    sceneContentRef.current?.setQubitIndices(qubitIndices);
   }, [qubitIndices]);
+
+  useEffect(() => {
+    xrSceneRef.current?.setPanelState({ ...xrPanelState, qualityLabel: "Quality: standard" });
+  }, [xrPanelState]);
 
   useEffect(() => {
     if (!mountRef.current) return undefined;
     const mount = mountRef.current;
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.xr.enabled = true;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.setClearColor(0x0b1020, 1);
@@ -145,18 +124,45 @@ export function BlochSphereStereo({ vectors, labels, qubitIndices, displayMode, 
     keyLight.position.set(3, 5, 4);
     scene.add(ambient, keyLight);
 
-    const rigs = vectors.map((_, index) =>
-      createSphereRig(index, vectors.length, labels[index] ?? `q${index}`, qubitIndices[index] ?? index),
+    const sceneContent = new BlochSceneContent(vectors, labels, qubitIndices);
+    sceneContentRef.current = sceneContent;
+    let sessionController: XrSessionController;
+    const xrScene = new XrScene(
+      renderer,
+      scene,
+      sceneContent,
+      {
+        previousStep: () => xrRuntimeRef.current.actions.previousStep(),
+        nextStep: () => xrRuntimeRef.current.actions.nextStep(),
+        reset: () => xrRuntimeRef.current.actions.reset(),
+        toggleAutoplay: () => xrRuntimeRef.current.actions.toggleAutoplay(),
+        stopAutoplay: () => xrRuntimeRef.current.actions.stopAutoplay(),
+        cyclePreset: () => xrRuntimeRef.current.actions.cyclePreset(),
+        cycleQubits: () => xrRuntimeRef.current.actions.cycleQubits(),
+        cyclePair: () => xrRuntimeRef.current.actions.cyclePair(),
+        exitXr: () => void sessionController.end(),
+      },
+      { ...xrRuntimeRef.current.panelState, qualityLabel: "Quality: standard" },
     );
-    rigs.forEach((rig) => scene.add(rig.root));
-    scene.add(createFloorGrid(vectors.length));
-
-    rendererRef.current = renderer;
-    effectRef.current = effect;
-    sceneRef.current = scene;
-    perspectiveCameraRef.current = perspectiveCamera;
-    orthographicCameraRef.current = orthographicCamera;
-    rigsRef.current = rigs;
+    sessionController = new XrSessionController(renderer, {
+      onSessionStarted: () => {
+        xrScene.startSession();
+        setXrStatus("presenting");
+        setXrError(undefined);
+      },
+      onSessionEnded: () => {
+        xrScene.endSession();
+        xrRuntimeRef.current.actions.stopAutoplay();
+        resize();
+        setXrStatus("idle");
+      },
+      onSessionHidden: () => {
+        xrRuntimeRef.current.actions.stopAutoplay();
+      },
+      onReferenceSpaceReset: () => xrScene.requestRecenter(),
+    });
+    xrSceneRef.current = xrScene;
+    xrSessionControllerRef.current = sessionController;
 
     const resize = () => {
       const bounds = mount.getBoundingClientRect();
@@ -164,8 +170,7 @@ export function BlochSphereStereo({ vectors, labels, qubitIndices, displayMode, 
       const height = Math.max(1, Math.floor(bounds.height));
       const aspect = width / height;
       viewportRef.current = { width, height, aspect };
-      renderer.setSize(width, height, false);
-      effect.setSize(width, height);
+      if (!renderer.xr.isPresenting) effect.setSize(width, height);
       perspectiveCamera.aspect = aspect;
       perspectiveCamera.updateProjectionMatrix();
       updateOrthographicProjection(orthographicCamera, aspect, cameraMotion.current.radius, vectors.length);
@@ -274,11 +279,12 @@ export function BlochSphereStereo({ vectors, labels, qubitIndices, displayMode, 
     resizeObserver.observe(mount);
     resize();
 
-    let frame = 0;
     const render = (time: number) => {
-      frame = window.requestAnimationFrame(render);
-      updateVectors(time);
-      if (modeRef.current === "anaglyph-red-green") {
+      sceneContent.update(time);
+      xrScene.update(time);
+      if (renderer.xr.isPresenting) {
+        renderer.render(scene, perspectiveCamera);
+      } else if (modeRef.current === "anaglyph-red-green") {
         updateCamera(perspectiveCamera);
         effect.eyeSeparation = stereoSettingsRef.current.eyeSeparation;
         effect.redGain = stereoSettingsRef.current.redGain;
@@ -290,10 +296,10 @@ export function BlochSphereStereo({ vectors, labels, qubitIndices, displayMode, 
         renderer.render(scene, orthographicCamera);
       }
     };
-    frame = window.requestAnimationFrame(render);
+    renderer.setAnimationLoop(render);
 
     return () => {
-      window.cancelAnimationFrame(frame);
+      renderer.setAnimationLoop(null);
       resizeObserver.disconnect();
       window.removeEventListener("resize", resize);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
@@ -306,17 +312,12 @@ export function BlochSphereStereo({ vectors, labels, qubitIndices, displayMode, 
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("blur", onWindowBlur);
       mount.removeChild(renderer.domElement);
-      scene.traverse((object: THREE.Object3D) => {
-        if (object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.LineSegments) {
-          object.geometry.dispose();
-          const materials = Array.isArray(object.material) ? object.material : [object.material];
-          materials.forEach((material: THREE.Material) => material.dispose());
-        } else if (object instanceof THREE.Sprite) {
-          const material = object.material;
-          material.map?.dispose();
-          material.dispose();
-        }
-      });
+      xrSessionControllerRef.current = null;
+      xrSceneRef.current = null;
+      sessionController.dispose();
+      xrScene.dispose();
+      sceneContentRef.current = null;
+      sceneContent.dispose();
       effect.dispose();
       renderer.dispose();
     };
@@ -325,6 +326,18 @@ export function BlochSphereStereo({ vectors, labels, qubitIndices, displayMode, 
   return (
     <div className={displayMode === "anaglyph-red-green" ? "bloch-stage is-stereo" : "bloch-stage"}>
       <div ref={mountRef} className="bloch-canvas" />
+      <div className="xr-entry-control" aria-live="polite">
+        {xrSupport === "supported" ? (
+          <button type="button" onClick={() => void startXr()} disabled={xrStatus !== "idle"} title="Enter immersive VR">
+            {xrStatus === "starting" ? "Starting VR…" : xrStatus === "presenting" ? "VR active" : "Enter VR"}
+          </button>
+        ) : xrSupport === "unsupported" ? (
+          <span>VR unavailable in this browser</span>
+        ) : (
+          <span>Checking VR…</span>
+        )}
+        {xrError ? <span className="xr-error">{xrError}</span> : null}
+      </div>
       <div className="camera-view-controls" aria-label="Bloch sphere camera views">
         <button type="button" onClick={() => setCameraView(RESET_CAMERA_YAW, TOP_CAMERA_PITCH)} title="View from above">
           <ArrowDown aria-hidden="true" />
@@ -353,6 +366,19 @@ export function BlochSphereStereo({ vectors, labels, qubitIndices, displayMode, 
     setCameraView(RESET_CAMERA_YAW, RESET_CAMERA_PITCH, STANDARD_CAMERA_RADIUS);
   }
 
+  async function startXr() {
+    const controller = xrSessionControllerRef.current;
+    if (!controller || controller.isPresenting) return;
+    setXrStatus("starting");
+    setXrError(undefined);
+    try {
+      await controller.start();
+    } catch (error) {
+      setXrStatus("idle");
+      setXrError(error instanceof Error ? error.message : "Unable to start VR.");
+    }
+  }
+
   function setCameraView(yaw: number, pitch: number, targetRadius = cameraMotion.current.targetRadius) {
     cameraMotion.current.targetYaw = yaw;
     cameraMotion.current.targetPitch = pitch;
@@ -361,30 +387,6 @@ export function BlochSphereStereo({ vectors, labels, qubitIndices, displayMode, 
     cameraMotion.current.pitchVelocity = 0;
     pointerRef.current.dragging = false;
     keyboardCameraRef.current = { mode: null, x: 0, y: 0, initialized: false };
-  }
-
-  function updateVectors(time: number) {
-    const animation = animationRef.current;
-    const elapsed = clamp((time - animation.startedAt) / TRANSITION_MS, 0, 1);
-    const eased = elapsed * elapsed * (3 - 2 * elapsed);
-    const current = animation.to.map((target, index) => {
-      const from = animation.from[index] ?? new THREE.Vector3(0, 0, 1);
-      return interpolateBlochVector(from, target, eased);
-    });
-    currentRef.current = current;
-    rigsRef.current.forEach((rig, index) => {
-      const vector = current[index] ?? new THREE.Vector3(0, 0, 1);
-      const length = vector.length();
-      const showMixedStateMarker = length <= MIXED_STATE_MARKER_THRESHOLD;
-      rig.arrow.root.visible = !showMixedStateMarker;
-      rig.mixedStateMarker.visible = showMixedStateMarker;
-      if (!showMixedStateMarker) {
-        const direction = vector.clone().normalize();
-        updateVectorArrow(rig.arrow, direction, length * 0.94);
-      }
-      const target = targetVectors[index];
-      rig.purityRing.scale.setScalar(0.74 + 0.24 * Math.sqrt(target?.lengthSq() ?? 1));
-    });
   }
 
   function updateCamera(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera) {
@@ -425,351 +427,8 @@ export function BlochSphereStereo({ vectors, labels, qubitIndices, displayMode, 
   }
 }
 
-function createSphereRig(index: number, total: number, label: string, qubitIndex: number): SphereRig {
-  const root = new THREE.Group();
-  root.position.x = (index - (total - 1) / 2) * SPHERE_SPACING;
-
-  const sphere = new THREE.Mesh(
-    new THREE.SphereGeometry(1, 48, 32),
-    new THREE.MeshPhysicalMaterial({
-      color: 0x7aa2ff,
-      transparent: true,
-      opacity: 0.13,
-      roughness: 0.28,
-      transmission: 0.24,
-      depthWrite: false,
-    }),
-  );
-  root.add(sphere);
-  root.add(createGrid());
-  root.add(createAxes());
-  root.add(createDepthGuides());
-  root.add(createBoundingCube());
-  root.add(createAxisLabels());
-
-  const vectorColor = colorForQubitIndex(qubitIndex);
-  const arrow = createVectorArrow(vectorColor);
-  root.add(arrow.root);
-
-  const mixedStateMarker = createMixedStateMarker(vectorColor);
-  root.add(mixedStateMarker);
-
-  const purityRing = new THREE.Mesh(
-    new THREE.TorusGeometry(1.02, 0.008, 8, 96),
-    new THREE.MeshBasicMaterial({ color: 0xf6f7fb, transparent: true, opacity: 0.26 }),
-  );
-  purityRing.rotation.x = Math.PI / 2;
-  root.add(purityRing);
-
-  const qubitLabel = createTextSprite(label, {
-    color: "#f6f7fb",
-    background: "rgba(11, 16, 32, 0.72)",
-    font: "800 52px system-ui, sans-serif",
-  });
-  qubitLabel.position.set(0, -0.58, 1.68);
-  qubitLabel.scale.set(0.58, 0.29, 1);
-  root.add(qubitLabel);
-
-  return { root, arrow, mixedStateMarker, purityRing, qubitLabel };
-}
-
-function colorForQubitIndex(qubitIndex: number): number {
-  return qubitIndex % 2 === 0 ? 0xffdc73 : 0x60d394;
-}
-
 function sameNumberArray(first: number[], second: number[]): boolean {
   return first.length === second.length && first.every((value, index) => value === second[index]);
-}
-
-function updateRigVectorColor(rig: SphereRig, color: number) {
-  setMeshColor(rig.arrow.shaft, color);
-  setMeshColor(rig.arrow.head, color);
-  setMeshColor(rig.mixedStateMarker, color);
-}
-
-function setMeshColor(mesh: THREE.Mesh, color: number) {
-  const material = mesh.material;
-  if (material instanceof THREE.MeshBasicMaterial) {
-    material.color.setHex(color);
-  }
-}
-
-function createVectorArrow(color: number): VectorArrow {
-  const root = new THREE.Group();
-  const material = new THREE.MeshBasicMaterial({
-    color,
-    transparent: true,
-    opacity: 0.98,
-    depthWrite: false,
-    wireframe: true,
-  });
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 1, 18, 3), material);
-  const head = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.28, 24, 3), material);
-  root.add(shaft, head);
-  updateVectorArrow({ root, shaft, head }, new THREE.Vector3(0, 0, 1), 0.94);
-  return { root, shaft, head };
-}
-
-function createMixedStateMarker(color: number): THREE.Mesh {
-  const marker = new THREE.Mesh(
-    new THREE.SphereGeometry(0.075, 24, 16),
-    new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.96,
-      depthWrite: false,
-    }),
-  );
-  marker.visible = false;
-  return marker;
-}
-
-function updateVectorArrow(arrow: VectorArrow, direction: THREE.Vector3, length: number) {
-  const headLength = Math.min(0.28, Math.max(0.18, length * 0.28));
-  const shaftLength = Math.max(0.001, length - headLength);
-  arrow.root.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
-  arrow.shaft.scale.set(1, shaftLength, 1);
-  arrow.shaft.position.set(0, shaftLength / 2, 0);
-  arrow.head.position.set(0, shaftLength + headLength / 2, 0);
-}
-
-function createDepthGuides(): THREE.Group {
-  const group = new THREE.Group();
-  const guideMaterial = new THREE.LineBasicMaterial({
-    color: 0x9fb4ff,
-    transparent: true,
-    opacity: 0.18,
-    depthWrite: false,
-  });
-
-  [-0.66, -0.33, 0.33, 0.66].forEach((z) => {
-    const radius = Math.sqrt(1 - z * z);
-    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(makeCircle(radius, z, "longitude")), guideMaterial));
-  });
-
-  const depthLine = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, 0, -1.22),
-      new THREE.Vector3(0, 0, 1.22),
-    ]),
-    new THREE.LineBasicMaterial({ color: 0xf6f7fb, transparent: true, opacity: 0.12 }),
-  );
-  group.add(depthLine);
-  return group;
-}
-
-function createBoundingCube(): THREE.LineSegments {
-  const geometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(2.36, 2.36, 2.36));
-  const material = new THREE.LineBasicMaterial({
-    color: 0xe8ecf4,
-    transparent: true,
-    opacity: 0.16,
-    depthWrite: false,
-  });
-  return new THREE.LineSegments(geometry, material);
-}
-
-function createAxisLabels(): THREE.Group {
-  const group = new THREE.Group();
-  const offset = 1.48;
-  const labels: Array<{ text: string; position: THREE.Vector3; color: string }> = [
-    { text: "|0⟩", position: new THREE.Vector3(0, 0, offset), color: "#f6f7fb" },
-    { text: "|1⟩", position: new THREE.Vector3(0, 0, -offset), color: "#f6f7fb" },
-    { text: "|+⟩", position: new THREE.Vector3(offset, 0, 0), color: "#ffd166" },
-    { text: "|-⟩", position: new THREE.Vector3(-offset, 0, 0), color: "#ffd166" },
-    { text: "|i⟩", position: new THREE.Vector3(0, offset, 0), color: "#60d394" },
-    { text: "|-i⟩", position: new THREE.Vector3(0, -offset, 0), color: "#60d394" },
-  ];
-
-  labels.forEach(({ text, position, color }) => {
-    const sprite = createTextSprite(text, { color });
-    sprite.position.copy(position);
-    group.add(sprite);
-  });
-
-  return group;
-}
-
-type TextSpriteOptions = {
-  color: string;
-  background?: string;
-  font?: string;
-};
-
-function createTextSprite(text: string, options: TextSpriteOptions): THREE.Sprite {
-  const canvas = document.createElement("canvas");
-  canvas.width = 256;
-  canvas.height = 128;
-  const context = canvas.getContext("2d");
-  if (!context) return new THREE.Sprite();
-
-  drawTextSpriteCanvas(context, text, options);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  const material = new THREE.SpriteMaterial({
-    map: texture,
-    transparent: true,
-    depthTest: false,
-    depthWrite: false,
-  });
-  const sprite = new THREE.Sprite(material);
-  sprite.scale.set(0.5, 0.25, 1);
-  return sprite;
-}
-
-function updateTextSprite(sprite: THREE.Sprite, text: string, options: TextSpriteOptions) {
-  const material = sprite.material;
-  const texture = material.map;
-  if (!texture) return;
-
-  const image = texture.image;
-  if (!(image instanceof HTMLCanvasElement)) return;
-
-  const context = image.getContext("2d");
-  if (!context) return;
-
-  drawTextSpriteCanvas(context, text, options);
-  texture.needsUpdate = true;
-}
-
-function drawTextSpriteCanvas(context: CanvasRenderingContext2D, text: string, options: TextSpriteOptions) {
-  const canvas = context.canvas;
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  if (options.background) {
-    context.fillStyle = options.background;
-    context.beginPath();
-    drawRoundedRect(context, 38, 28, canvas.width - 76, canvas.height - 56, 24);
-    context.fill();
-  }
-  context.font = options.font ?? "700 48px system-ui, sans-serif";
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.lineWidth = 7;
-  context.strokeStyle = "rgba(11, 16, 32, 0.88)";
-  context.fillStyle = options.color;
-  context.strokeText(text, canvas.width / 2, canvas.height / 2);
-  context.fillText(text, canvas.width / 2, canvas.height / 2);
-}
-
-function drawRoundedRect(
-  context: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-) {
-  context.moveTo(x + radius, y);
-  context.lineTo(x + width - radius, y);
-  context.quadraticCurveTo(x + width, y, x + width, y + radius);
-  context.lineTo(x + width, y + height - radius);
-  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-  context.lineTo(x + radius, y + height);
-  context.quadraticCurveTo(x, y + height, x, y + height - radius);
-  context.lineTo(x, y + radius);
-  context.quadraticCurveTo(x, y, x + radius, y);
-}
-
-function createFloorGrid(total: number): THREE.Group {
-  const group = new THREE.Group();
-  const material = new THREE.LineBasicMaterial({
-    color: 0x6f86b8,
-    transparent: true,
-    opacity: 0.12,
-    depthWrite: false,
-  });
-  const width = Math.max(6, total * 2.8);
-  const depth = 6;
-  const divisions = Math.max(12, total * 4);
-  const y = -1.32;
-
-  for (let i = 0; i <= divisions; i += 1) {
-    const x = -width / 2 + (width * i) / divisions;
-    const z = -depth / 2 + (depth * i) / divisions;
-    group.add(
-      new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(-width / 2, y, z),
-          new THREE.Vector3(width / 2, y, z),
-        ]),
-        material,
-      ),
-    );
-    group.add(
-      new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(x, y, -depth / 2),
-          new THREE.Vector3(x, y, depth / 2),
-        ]),
-        material,
-      ),
-    );
-  }
-
-  return group;
-}
-
-function createGrid(): THREE.Group {
-  const group = new THREE.Group();
-
-  for (let lat = 1; lat <= DEFAULT_GRID_OPTIONS.latitudeCount; lat += 1) {
-    const phi = (lat / (DEFAULT_GRID_OPTIONS.latitudeCount + 1)) * Math.PI;
-    const y = Math.cos(phi);
-    const radius = Math.sin(phi);
-    group.add(createLineLoop(makeCircle(radius, y, "latitude")));
-  }
-
-  for (let lon = 0; lon < DEFAULT_GRID_OPTIONS.longitudeCount; lon += 1) {
-    const angle = (lon / DEFAULT_GRID_OPTIONS.longitudeCount) * Math.PI;
-    const line = createLineLoop(makeCircle(1, 0, "longitude"));
-    line.rotation.y = angle;
-    group.add(line);
-  }
-
-  return group;
-}
-
-function createAxes(): THREE.Group {
-  const group = new THREE.Group();
-  const material = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 });
-  [
-    [new THREE.Vector3(-1.12, 0, 0), new THREE.Vector3(1.12, 0, 0)],
-    [new THREE.Vector3(0, -1.12, 0), new THREE.Vector3(0, 1.12, 0)],
-    [new THREE.Vector3(0, 0, -1.12), new THREE.Vector3(0, 0, 1.12)],
-  ].forEach(([start, end]) => {
-    const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
-    group.add(new THREE.Line(geometry, material));
-  });
-  return group;
-}
-
-function makeCircle(radius: number, y: number, kind: "latitude" | "longitude"): THREE.Vector3[] {
-  const points: THREE.Vector3[] = [];
-  for (let step = 0; step <= 96; step += 1) {
-    const theta = (step / 96) * Math.PI * 2;
-    if (kind === "latitude") {
-      points.push(new THREE.Vector3(Math.cos(theta) * radius, y, Math.sin(theta) * radius));
-    } else {
-      points.push(new THREE.Vector3(Math.cos(theta) * radius, Math.sin(theta) * radius, y));
-    }
-  }
-  return points;
-}
-
-function createLineLoop(points: THREE.Vector3[]): THREE.Line {
-  return new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints(points),
-    new THREE.LineBasicMaterial({
-      color: 0xd8e0ff,
-      transparent: true,
-      opacity: DEFAULT_GRID_OPTIONS.opacity,
-    }),
-  );
-}
-
-function toVector3(vector: BlochVector): THREE.Vector3 {
-  return new THREE.Vector3(vector.x, vector.y, vector.z);
 }
 
 function updateOrthographicProjection(
@@ -789,51 +448,6 @@ function updateOrthographicProjection(
   camera.top = viewHeight / 2;
   camera.bottom = -viewHeight / 2;
   camera.updateProjectionMatrix();
-}
-
-function interpolateBlochVector(from: THREE.Vector3, to: THREE.Vector3, amount: number): THREE.Vector3 {
-  const fromLength = from.length();
-  const toLength = to.length();
-  const length = fromLength + (toLength - fromLength) * amount;
-
-  if (length <= DIRECTION_EPSILON) {
-    return new THREE.Vector3(0, 0, 0);
-  }
-
-  if (fromLength <= DIRECTION_EPSILON) {
-    return to.clone().normalize().multiplyScalar(length);
-  }
-
-  if (toLength <= DIRECTION_EPSILON) {
-    return from.clone().normalize().multiplyScalar(length);
-  }
-
-  const fromDirection = from.clone().normalize();
-  const toDirection = to.clone().normalize();
-  const dot = clamp(fromDirection.dot(toDirection), -1, 1);
-
-  if (dot > 1 - DIRECTION_EPSILON) {
-    return fromDirection.lerp(toDirection, amount).normalize().multiplyScalar(length);
-  }
-
-  if (dot < -1 + DIRECTION_EPSILON) {
-    const tangent =
-      Math.abs(fromDirection.x) < 0.8
-        ? new THREE.Vector3(1, 0, 0)
-        : new THREE.Vector3(0, 1, 0);
-    tangent.sub(fromDirection.clone().multiplyScalar(tangent.dot(fromDirection))).normalize();
-    return fromDirection
-      .multiplyScalar(Math.cos(Math.PI * amount))
-      .add(tangent.multiplyScalar(Math.sin(Math.PI * amount)))
-      .multiplyScalar(length);
-  }
-
-  const angle = Math.acos(dot);
-  const relativeDirection = toDirection.sub(fromDirection.clone().multiplyScalar(dot)).normalize();
-  return fromDirection
-    .multiplyScalar(Math.cos(angle * amount))
-    .add(relativeDirection.multiplyScalar(Math.sin(angle * amount)))
-    .multiplyScalar(length);
 }
 
 function clamp(value: number, min: number, max: number): number {

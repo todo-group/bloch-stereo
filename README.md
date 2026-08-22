@@ -32,6 +32,9 @@ It focuses on small circuits where reduced density matrices, measurement collaps
 - Bloch view reset button that restores the camera with `|0>` upward
 - QASM editor modal opened from the circuit editor
 - Hide/show button for the left circuit editor panel
+- Meta Quest 3S immersive WebXR presentation with Touch Plus controller rays and optional hand pinch input
+- In-VR transport, recenter, preset, visible-qubit, and correlation-pair controls
+- Existing red/cyan glasses mode remains available independently of WebXR
 
 ## Presets
 
@@ -166,6 +169,24 @@ npx playwright install chromium
 node scripts/verify-canvas.mjs
 ```
 
+## Meta Quest 3S
+
+Serve the production build over HTTPS, open it in the current Meta Quest Browser, and select **Enter VR**. The immersive view uses native headset stereo; the existing red/cyan anaglyph mode remains available on ordinary displays.
+
+The initial immersive interface supports playback and visualization. Circuit construction and QASM text editing remain in the 2D browser page.
+
+Desktop WebXR emulation is available during development at:
+
+```txt
+http://localhost:5173/?emulate-xr=1
+```
+
+After starting the development server, run the IWER regression with:
+
+```sh
+npm run verify:webxr
+```
+
 ## Project Structure
 
 ```txt
@@ -195,7 +216,7 @@ Possible future work:
 - full density-matrix UI
 - OpenQASM 3
 - Stream Deck hardware integration
-- WebXR
+- passthrough mixed reality and full in-XR circuit editing
 - GPU acceleration
 - tensor-network backend
 

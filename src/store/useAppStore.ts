@@ -37,6 +37,8 @@ type AppState = {
   stereoSettings: StereoSettings;
   autoplay: boolean;
   selectedPreset?: PresetName;
+  visibleQubits: number[];
+  correlationPair: [number, number];
   selectedGate: GateName;
   rotationAngleDegrees: number;
   noiseProbability: number;
@@ -55,11 +57,15 @@ type AppState = {
   previousStep: () => void;
   setStep: (step: number) => void;
   toggleAutoplay: () => void;
+  stopAutoplay: () => void;
   setDisplayMode: (mode: DisplayMode) => void;
   setSimulationBackend: (backend: SimulationBackend) => void;
   setStereoSettings: (settings: Partial<StereoSettings>) => void;
   resetStereoSettings: () => void;
   setSelectedGate: (gate: GateName) => void;
+  toggleVisibleQubit: (qubit: number) => void;
+  setVisibleQubits: (qubits: number[]) => void;
+  setCorrelationPair: (pair: [number, number]) => void;
   setRotationAngleDegrees: (degrees: number) => void;
   setNoiseProbability: (probability: number) => void;
   setTargetQubit: (qubit: number) => void;
@@ -87,6 +93,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   stereoSettings: { ...DEFAULT_STEREO_SETTINGS },
   autoplay: false,
   selectedPreset: undefined,
+  visibleQubits: [0, 1, 2],
+  correlationPair: [0, 1],
   selectedGate: "h",
   rotationAngleDegrees: 90,
   noiseProbability: 0.25,
@@ -204,6 +212,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ snapshots, currentStep: nextStep, autoplay: false });
   },
   toggleAutoplay: () => set(({ autoplay }) => ({ autoplay: !autoplay })),
+  stopAutoplay: () => set({ autoplay: false }),
   setDisplayMode: (mode) => set({ displayMode: mode }),
   setSimulationBackend: (backend) => {
     const state = get();
@@ -217,6 +226,37 @@ export const useAppStore = create<AppState>((set, get) => ({
   setStereoSettings: (settings) => set((state) => ({ stereoSettings: { ...state.stereoSettings, ...settings } })),
   resetStereoSettings: () => set({ stereoSettings: { ...DEFAULT_STEREO_SETTINGS } }),
   setSelectedGate: (gate) => set({ selectedGate: gate }),
+  toggleVisibleQubit: (qubit) =>
+    set((state) => {
+      if (qubit < 0 || qubit >= state.circuit.numQubits) return state;
+      if (state.visibleQubits.includes(qubit)) {
+        const next = state.visibleQubits.filter((item) => item !== qubit);
+        return next.length ? { visibleQubits: next } : state;
+      }
+      return { visibleQubits: [...state.visibleQubits, qubit].slice(-3) };
+    }),
+  setVisibleQubits: (qubits) =>
+    set((state) => {
+      const next = [...new Set(qubits)]
+        .filter((qubit) => Number.isInteger(qubit) && qubit >= 0 && qubit < state.circuit.numQubits)
+        .slice(0, 3)
+        .sort((first, second) => first - second);
+      return next.length ? { visibleQubits: next } : state;
+    }),
+  setCorrelationPair: (pair) =>
+    set((state) => {
+      const [first, second] = pair;
+      if (
+        first < 0 ||
+        second < 0 ||
+        first >= state.circuit.numQubits ||
+        second >= state.circuit.numQubits ||
+        first === second
+      ) {
+        return state;
+      }
+      return { correlationPair: pair };
+    }),
   setRotationAngleDegrees: (degrees) => set({ rotationAngleDegrees: Number.isFinite(degrees) ? degrees : 0 }),
   setNoiseProbability: (probability) => set({ noiseProbability: clamp(Number.isFinite(probability) ? probability : 0, 0, 1) }),
   setTargetQubit: (qubit) => set({ targetQubit: qubit }),

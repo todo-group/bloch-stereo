@@ -8,6 +8,10 @@ const viewports = [
   { name: "desktop", width: 1280, height: 800 },
   { name: "mobile", width: 390, height: 844 },
 ];
+const displayModes = [
+  { name: "2d", enableStereo: false },
+  { name: "anaglyph", enableStereo: true },
+];
 
 const browser = await chromium.launch();
 
@@ -16,32 +20,37 @@ try {
     const page = await browser.newPage({ viewport });
     await page.goto(url, { waitUntil: "networkidle" });
     await page.waitForSelector("canvas");
-    await page.waitForTimeout(800);
-
-    const bounds = await page.evaluate(() => {
-      const canvas = document.querySelector("canvas");
-      if (!(canvas instanceof HTMLCanvasElement)) {
-        return { ok: false, reason: "canvas not found", width: 0, height: 0 };
+    for (const displayMode of displayModes) {
+      if (displayMode.enableStereo) {
+        await page.getByTitle("Stereo toggle").click();
+        await page.waitForSelector(".bloch-stage.is-stereo");
       }
-      const bounds = canvas.getBoundingClientRect();
-      return {
-        ok: bounds.width > 300 && bounds.height > 300,
-        width: Math.round(bounds.width),
-        height: Math.round(bounds.height),
-      };
-    });
+      await page.waitForTimeout(800);
 
-    const screenshotPath = join(tmpdir(), `bloch-stereo-${viewport.name}.png`);
-    const imageBuffer = await page.locator(".bloch-stage").screenshot({ path: screenshotPath });
-    const image = PNG.sync.read(imageBuffer);
-    const pixelResult = analyzePixels(image);
-    await page.close();
+      const bounds = await page.evaluate(() => {
+        const canvas = document.querySelector("canvas");
+        if (!(canvas instanceof HTMLCanvasElement)) {
+          return { ok: false, reason: "canvas not found", width: 0, height: 0 };
+        }
+        const bounds = canvas.getBoundingClientRect();
+        return {
+          ok: bounds.width > 300 && bounds.height > 300,
+          width: Math.round(bounds.width),
+          height: Math.round(bounds.height),
+        };
+      });
 
-    const result = { ...bounds, ...pixelResult, screenshotPath };
-    if (!result.ok || !pixelResult.ok) {
-      throw new Error(`${viewport.name} canvas check failed: ${JSON.stringify(result)}`);
+      const screenshotPath = join(tmpdir(), `bloch-stereo-${viewport.name}-${displayMode.name}.png`);
+      const imageBuffer = await page.locator(".bloch-stage").screenshot({ path: screenshotPath });
+      const image = PNG.sync.read(imageBuffer);
+      const pixelResult = analyzePixels(image);
+      const result = { ...bounds, ...pixelResult, screenshotPath };
+      if (!result.ok || !pixelResult.ok) {
+        throw new Error(`${viewport.name} ${displayMode.name} canvas check failed: ${JSON.stringify(result)}`);
+      }
+      console.log(`${viewport.name} ${displayMode.name}: ${JSON.stringify(result)}`);
     }
-    console.log(`${viewport.name}: ${JSON.stringify(result)}`);
+    await page.close();
   }
 } finally {
   await browser.close();

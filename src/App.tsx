@@ -54,18 +54,22 @@ export function App() {
     displayMode,
     stereoSettings,
     selectedPreset,
+    visibleQubits,
+    correlationPair,
     nextStep,
     previousStep,
     resetExecution,
     toggleAutoplay,
+    stopAutoplay,
     setDisplayMode,
     setStereoSettings,
     resetStereoSettings,
     loadPreset,
     addGate,
+    toggleVisibleQubit,
+    setVisibleQubits,
+    setCorrelationPair,
   } = useAppStore();
-  const [visibleQubits, setVisibleQubits] = useState<number[]>([0, 1, 2]);
-  const [correlationPair, setCorrelationPair] = useState<[number, number]>([0, 1]);
   const [editorOpen, setEditorOpen] = useState(true);
   const snapshot = snapshots[currentStep] ?? snapshots[0];
   const allBlochVectors = snapshot.densityMatrix
@@ -88,6 +92,29 @@ export function App() {
         : correlationMatrix(snapshot.statevector, circuit.numQubits, validCorrelationPair[0], validCorrelationPair[1])
       : undefined;
   const isStereoMode = displayMode === "anaglyph-red-green";
+
+  const cycleXrPreset = () => {
+    const currentIndex = presetOptions.findIndex((preset) => preset.value === selectedPreset);
+    loadPreset(presetOptions[(currentIndex + 1) % presetOptions.length].value);
+  };
+
+  const cycleXrQubits = () => {
+    const maximum = Math.min(3, circuit.numQubits);
+    const nextCount = effectiveVisibleQubits.length >= maximum ? 1 : effectiveVisibleQubits.length + 1;
+    setVisibleQubits(Array.from({ length: nextCount }, (_, qubit) => qubit));
+  };
+
+  const cycleXrPair = () => {
+    if (circuit.numQubits < 2) return;
+    const pairs: Array<[number, number]> = [];
+    for (let first = 0; first < circuit.numQubits; first += 1) {
+      for (let second = first + 1; second < circuit.numQubits; second += 1) pairs.push([first, second]);
+    }
+    const currentIndex = pairs.findIndex(
+      ([first, second]) => first === validCorrelationPair[0] && second === validCorrelationPair[1],
+    );
+    setCorrelationPair(pairs[(currentIndex + 1) % pairs.length]);
+  };
 
   useEffect(() => {
     if (!autoplay) return undefined;
@@ -133,16 +160,6 @@ export function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [addGate, displayMode, nextStep, previousStep, resetExecution, setDisplayMode, setEditorOpen]);
-
-  const toggleVisibleQubit = (qubit: number) => {
-    setVisibleQubits((current) => {
-      if (current.includes(qubit)) {
-        const next = current.filter((item) => item !== qubit);
-        return next.length ? next : current;
-      }
-      return [...current, qubit].slice(-3);
-    });
-  };
 
   return (
     <main className="app-shell">
@@ -293,6 +310,32 @@ export function App() {
             displayMode={displayMode}
             stereoSettings={stereoSettings}
             activeStep={currentStep}
+            xrPanelState={{
+              step: currentStep,
+              totalSteps: Math.max(0, snapshots.length - 1),
+              canPrevious: currentStep > 0,
+              canNext: currentStep < snapshots.length - 1,
+              canSelectPair: circuit.numQubits >= 2,
+              autoplay,
+              activeOperation: snapshot.appliedOp?.name.toUpperCase() ?? "INITIAL",
+              presetLabel: presetOptions.find((preset) => preset.value === selectedPreset)?.label ?? "Custom",
+              qubitsLabel: effectiveVisibleQubits.map((qubit) => `q${qubit}`).join(","),
+              pairLabel: circuit.numQubits >= 2 ? `q${validCorrelationPair[0]}/q${validCorrelationPair[1]}` : "N/A",
+              classicalLabel: snapshot.classicalBits.map((bit, index) => `c${index}:${bit}`).join(" "),
+              correlationLabel: correlations
+                ? `C ${correlations.flat().map((value) => value.toFixed(1)).join(" ")}`
+                : "C N/A",
+            }}
+            xrActions={{
+              previousStep,
+              nextStep,
+              reset: resetExecution,
+              toggleAutoplay,
+              stopAutoplay,
+              cyclePreset: cycleXrPreset,
+              cycleQubits: cycleXrQubits,
+              cyclePair: cycleXrPair,
+            }}
           />
           <div className="visual-readouts">
             <div className="view-controls">

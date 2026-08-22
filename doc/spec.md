@@ -1,7 +1,7 @@
 # Bloch Stereo Quantum Circuit Editor Specification
 
-Version: 0.5
-Last updated: 2026-05-31
+Version: 0.7
+Last updated: 2026-08-16
 
 ---
 
@@ -22,6 +22,8 @@ The current implementation combines:
 - adjustable anaglyph stereo controls
 - educational Bell, GHZ, and quantum teleportation presets
 - exhibition-oriented controls with large targets
+
+Version 0.7 implements the browser-side Meta Quest 3S WebXR design. Capability probing, immersive sessions, XR controls, controller and hand input, adaptive quality, and IWER regression coverage are implemented. Physical Quest 3S acceptance remains pending; support is not considered hardware-validated until the physical-device criteria pass.
 
 The system is intended for:
 
@@ -81,6 +83,14 @@ Design priorities:
 - random measurement sampling for the measurement being entered, while preserving earlier measurement outcomes
 - Vitest coverage for parser and simulator core behavior
 - Playwright screenshot/canvas verification script
+- reusable presentation-neutral `BlochSceneContent` Three.js scene module
+- allocation-free Bloch-vector interpolation hot path using preallocated vector buffers
+- desktop and mobile canvas verification for both 2D and red/cyan anaglyph modes
+- WebXR capability detection and recoverable immersive session lifecycle
+- Meta Quest Touch Plus ray controls and optional hand-pinch input
+- in-XR transport, recenter, preset, visible-qubit, and correlation-pair controls
+- Quest spatial layout, fixed-foveation defaults, adaptive decoration quality, and frame-time monitoring
+- development-only Meta Quest 3 IWER runtime and automated WebXR regression script
 - English and Japanese README files with language switching
 
 ### Not Implemented In The Initial Version
@@ -103,7 +113,7 @@ Design priorities:
 - non-unitary channel support in the statevector backend
 - GPU acceleration
 - tensor-network backend
-- WebXR
+- physical Meta Quest 3S acceptance testing for the implemented WebXR presentation
 
 ---
 
@@ -163,6 +173,41 @@ Supported display modes:
 
 1. standard 2D monitor
 2. red-green or red-cyan anaglyph stereoscopic display
+
+Implemented target display pending physical-device acceptance:
+
+3. Meta Quest 3S through Meta Quest Browser and WebXR `immersive-vr`
+
+The existing red/cyan anaglyph mode for red-blue 3D glasses remains a supported first-class presentation mode after Quest support is added. Anaglyph and WebXR are separate presentation paths: anaglyph post-processing MUST continue to work on ordinary 2D displays, but MUST NOT be applied during an immersive WebXR session because the XR compositor supplies the left-eye and right-eye views. Adding WebXR MUST NOT remove, hide, rename, or reduce the existing anaglyph calibration controls.
+
+### Meta Quest 3S
+
+Meta Quest 3S is the first standalone headset target. Support means browser delivery rather than a native Horizon OS package:
+
+- current stable Meta Quest Browser
+- WebXR `immersive-vr` session
+- tracked-head rendering
+- Meta Quest Touch Plus controllers as the required immersive input path
+- hand tracking as a progressive enhancement, not a launch blocker
+- continued non-immersive operation in the Quest Browser window when WebXR is unavailable or permission is denied
+
+The production site MUST be delivered over HTTPS. Local development may use a browser-recognized secure localhost context or an HTTPS development endpoint reachable by the headset.
+
+The application MUST detect support with `navigator.xr?.isSessionSupported("immersive-vr")`. It MUST show **Enter VR** only when supported, show a concise unavailable state otherwise, and request the immersive session only from an explicit user action.
+
+The initial Quest scope is a focused visualization and playback experience. Circuit construction, QASM text editing, and detailed numeric settings remain available in the 2D browser page before or after the immersive session. The immersive view MUST provide:
+
+- previous step
+- next step
+- reset
+- autoplay/pause
+- exit VR
+- current step and active operation
+- preset selection
+- visible-qubit selection for one to three Bloch spheres
+- correlation-pair selection when at least two qubits exist
+
+Full in-XR gate editing, QASM keyboard entry, passthrough mixed reality, room meshing, anchors, and multi-user sessions are outside the first Quest milestone.
 
 ### Pointing Device
 
@@ -233,9 +278,17 @@ The current version supports Stream Deck use through ordinary keyboard and mouse
                                  |
                                  v
              +--------------------------------------+
-             | Bloch Stereo Visualization Engine    |
+             | Shared Visualization Scene Model     |
              +--------------------------------------+
+                    |                       |
+                    v                       v
+       +------------------------+  +------------------------+
+       | Desktop / Anaglyph     |  | WebXR Presentation     |
+       | Presentation           |  | and XR Interaction     |
+       +------------------------+  +------------------------+
 ```
+
+The simulator, circuit state, and exact execution snapshots remain presentation-independent. Desktop, red/cyan anaglyph, and WebXR presentations consume the same immutable snapshot data. XR controller events dispatch the same store actions used by the React transport controls. WebXR support is additive and MUST NOT replace the existing red-blue-glasses workflow.
 
 ### Technology Stack
 
@@ -249,6 +302,7 @@ Rendering:
 
 - Three.js
 - WebGL
+- WebXR Device API for Meta Quest 3S immersive presentation
 - Three.js `AnaglyphEffect`
 - local adjustable anaglyph effect based on Three.js `AnaglyphEffect`
 
@@ -293,8 +347,19 @@ src/
   presets/
     teleportation.ts
   stereo/
+    AdjustableAnaglyphEffect.ts
+    BlochSceneContent.ts
+    BlochSceneContent.test.ts
     BlochSphereStereo.tsx
     CorrelationMatrixStereo.tsx
+  xr/
+    XrCapability.ts
+    XrControlPanel.ts
+    XrInteraction.ts
+    XrQualityController.ts
+    XrScene.ts
+    XrSessionController.ts
+    setupXrEmulation.ts
   store/
     useAppStore.ts
   styles/
@@ -306,6 +371,23 @@ scripts/
 streamdeck/
   mk2/
 ```
+
+Implemented Quest-specific modules:
+
+```txt
+src/
+  stereo/
+    BlochSceneContent.ts
+  xr/
+    XrCapability.ts
+    XrSessionController.ts
+    XrScene.ts
+    XrInteraction.ts
+    XrControlPanel.ts
+    XrQualityController.ts
+```
+
+`BlochSceneContent` will own reusable Three.js scene objects without owning a camera, renderer, DOM events, or animation loop. `BlochSphereStereo` will retain the desktop/anaglyph adapter, while `XrScene` will provide the XR camera, session lifecycle, spatial layout, and headset input. This split prevents XR behavior from becoming conditional branches throughout one monolithic renderer.
 
 ---
 
@@ -726,6 +808,187 @@ The exact simulator state is not modified for visual interpolation.
 
 ---
 
+## Meta Quest 3S WebXR Design
+
+### Session And Rendering Lifecycle
+
+The Quest implementation MUST use the existing `THREE.WebGLRenderer`; it MUST NOT create a second WebGL context when entering XR.
+
+Required setup:
+
+```ts
+renderer.xr.enabled = true;
+renderer.setAnimationLoop(renderFrame);
+```
+
+`renderer.setAnimationLoop` replaces the current direct `window.requestAnimationFrame` loop for both desktop and immersive rendering. This keeps a single update path and allows the WebXR runtime to schedule headset frames.
+
+The application SHOULD request:
+
+```ts
+const sessionInit: XRSessionInit = {
+  optionalFeatures: ["local-floor", "hand-tracking"],
+};
+```
+
+After `requestSession` resolves and before passing the session to the renderer, the implementation selects `local-floor` when the granted session exposes that feature; otherwise it calls `renderer.xr.setReferenceSpaceType("local")`. `local-floor` is preferred for stable exhibit placement, while `local` is the required fallback. Hand tracking MUST be optional so controller operation remains available when hand permission or tracking is unavailable.
+
+Session lifecycle requirements:
+
+1. Probe `immersive-vr` support after page load without opening a session.
+2. Start a session only from the visitor's **Enter VR** activation.
+3. Preserve the current circuit, execution step, selected preset, visible qubits, and correlation pair across entry and exit.
+4. Preserve autoplay on entry, but stop it when the session becomes hidden or ends so playback cannot continue unseen.
+5. Release controller, hand, ray, and session event listeners on session end.
+6. Restore the ordinary 2D canvas and controls without reloading the application.
+7. Present a recoverable error in the browser page if permission, session creation, or WebGL initialization fails.
+
+The XR session state is transient runtime state and MUST remain separate from `DisplayMode`. `DisplayMode` continues to represent `2d` or `anaglyph-red-green`; an XR session temporarily owns presentation while active. This avoids persisting an invalid `xr` display setting across reloads or unsupported devices.
+
+The current `visibleQubits` and `correlationPair` values are local React state in `App`. They MUST move into shared visualization state, or an equivalent presentation-neutral owner, before XR controls are added. Desktop and XR views MUST not maintain divergent selections.
+
+### Spatial Layout And Comfort
+
+WebXR world units MUST be treated as meters. Existing scene dimensions are illustration units and MUST be placed under a scaleable `contentRoot` before use in XR.
+
+Initial ergonomic layout:
+
+- head motion controls the view; application code MUST NOT rotate or translate the XR camera
+- scene origin uses a standing `local-floor` reference when available
+- Bloch-sphere centers appear approximately `1.2` to `1.6 m` above the floor
+- primary content begins approximately `1.3` to `2.0 m` in front of the visitor
+- a Bloch sphere has an initial physical diameter of approximately `0.35` to `0.45 m`
+- the three-sphere layout fits within a comfortable central field of view without requiring head rotation for core transport controls
+- the control panel is below or beside the spheres and does not occlude vectors, labels, or correlations
+- content placement can be recentered from an always-available XR control
+
+The XR experience MUST NOT implement forced locomotion, continuous artificial camera rotation, head bob, or abrupt world movement. Existing pointer-driven inertial camera controls apply only outside XR. Optional content-root rotation or scaling, if later added, MUST be damped, bounded, and disabled while a UI ray is selecting a control.
+
+The current floor grid, bounding cubes, depth rings, and labels SHOULD be simplified for true binocular stereo. Their purpose is spatial reference, not decoration. Text sprites MUST face the visitor or use a stable panel orientation; they MUST remain readable without being attached to the head at an uncomfortable depth.
+
+### Immersive User Interface
+
+The existing React DOM is not assumed to be visible or interactive inside an immersive session. Required XR controls MUST therefore be rendered as Three.js scene objects and connected to shared application actions.
+
+XR controls MUST meet these rules:
+
+- use large targets with a minimum initial face size of approximately `0.04 m` in each interactive dimension at arm's-length panel distance
+- show distinct idle, hover, pressed, disabled, and focused states without relying on red/green color discrimination
+- include text or shape cues in addition to color
+- keep **Exit VR**, **Reset**, **Prev**, **Next**, and **Pause** directly reachable
+- provide audio-free visual confirmation of activation
+- debounce activation so one trigger press advances only one step
+- prevent activation through nearer objects by choosing the closest valid ray intersection
+- preserve all exact simulator behavior, including measurement resampling rules
+
+Long QASM text, dense gate palettes, numeric slider calibration, and modal dialogs MUST NOT be reproduced in the first immersive UI. If a visitor requests one of those tasks, the UI directs them to exit VR and use the Quest Browser page.
+
+### Controller And Hand Input
+
+Touch Plus controllers are the baseline input method.
+
+For each connected controller, the implementation MUST use:
+
+- `renderer.xr.getController(index)` for target-ray pose and selection events
+- `renderer.xr.getControllerGrip(index)` for the visible controller model when available
+- a high-contrast ray and endpoint cursor
+- `selectstart`, `selectend`, `connected`, and `disconnected` lifecycle events
+
+The primary trigger activates the nearest intersected control. Either controller may operate the UI; the implementation MUST not require a fixed dominant hand. Thumbsticks and grip buttons are optional shortcuts and MUST NOT be the only way to reach a required action.
+
+Hand tracking is a progressive enhancement using `renderer.xr.getHand(index)`. A pinch may map to the same abstract `select` action as a controller trigger. If hands are lost, low-confidence, or unavailable, controls remain operable with controllers. The first milestone does not require direct grabbing of Bloch spheres or gates.
+
+All XR input paths MUST feed a presentation-neutral command layer such as:
+
+```ts
+type ExhibitionCommand =
+  | "previous-step"
+  | "next-step"
+  | "reset"
+  | "toggle-autoplay"
+  | "recenter"
+  | "exit-xr";
+```
+
+Keyboard, Stream Deck, DOM buttons, XR controllers, and hand pinch may map into the same command layer.
+
+### Quest Rendering Quality
+
+The first Quest milestone targets stable `72 FPS` (`13.9 ms` per frame or less) throughout a session. `90 FPS` is a stretch goal after the 72 FPS acceptance target is met. The application MUST prefer stable frame delivery over maximum mesh density or transparency quality.
+
+Quest-specific rendering requirements:
+
+- render native XR stereo through the WebXR compositor; never use `AdjustableAnaglyphEffect` in XR
+- configure framebuffer scale and fixed foveation, when supported, before the XR session starts
+- begin with conservative framebuffer scale and moderate fixed foveation, then tune on physical Quest 3S hardware
+- avoid full-screen post-processing and extra render passes in XR
+- share sphere, grid, axis, arrow, and panel geometry/material resources
+- preallocate Bloch-vector interpolation vectors and raycasting scratch objects
+- eliminate the current per-frame `clone`, `map`, and temporary-vector allocations from XR hot paths
+- reduce sphere segment counts, transparency layers, depth guides, and label texture resolution through an XR quality profile
+- cap simultaneously visible Bloch spheres at three
+- suspend hidden DOM-only visualization work while immersive presentation is active
+- perform density-matrix simulation and snapshot changes only when circuit state or execution step changes, never once per XR frame
+
+Adaptive quality MAY lower framebuffer scale or decorative detail after sustained missed frames. It MUST use measured frame timing and capability checks rather than Quest user-agent sniffing. It MUST apply hysteresis so quality does not flicker between levels.
+
+### Capability And Failure Behavior
+
+The application MUST remain useful in every capability state:
+
+| State | Required behavior |
+| --- | --- |
+| No `navigator.xr` | Keep 2D/anaglyph modes; hide **Enter VR** and explain that WebXR is unavailable. |
+| `immersive-vr` unsupported | Keep browser visualization and show a non-blocking unsupported message. |
+| Session denied | Keep the circuit and step unchanged and allow retry. |
+| Controller disconnected | Continue head-tracked viewing and accept another controller or hand if available. |
+| Hand tracking unavailable | Continue with Touch Plus controllers without warning noise. |
+| Reference space reset | Reapply a comfortable content-root placement without changing simulator state. |
+| Session ended unexpectedly | Stop autoplay, clean up XR resources, and return to the 2D page. |
+| Performance budget missed | Reduce optional visual quality before removing labels, vectors, or transport controls. |
+
+No feature essential to understanding the quantum state may depend only on haptics, audio, hand tracking, or a single controller.
+
+### Implementation Sequence
+
+The Quest work SHOULD be delivered in the following order:
+
+1. Extract reusable scene content and remove per-frame allocations from the render path.
+2. Convert the renderer to `setAnimationLoop` and verify unchanged desktop/anaglyph behavior.
+3. Add capability probing, **Enter VR**, XR session lifecycle, and a scaled static Bloch scene.
+4. Add controller rays and the minimum transport, exit, and recenter panel.
+5. Add step/preset/qubit/correlation status and selection controls.
+6. Add the Quest quality profile and frame-time instrumentation.
+7. Add optional hand pinch input.
+8. Run emulator regression tests and the physical Quest 3S acceptance pass.
+
+Each step MUST preserve exact simulator state and both existing non-XR modes: standard 2D and red/cyan anaglyph for red-blue 3D glasses.
+
+Implementation status:
+
+- Step 1 completed on 2026-08-16: reusable scene content was extracted into `BlochSceneContent`, interpolation buffers were preallocated, and 2D/anaglyph visual regression coverage was expanded.
+- Steps 2 through 7 completed on 2026-08-16: the shared animation loop, session lifecycle, spatial scene, controller panel, shared selections, adaptive quality, and optional hand pinch input were implemented.
+- Step 8 automated coverage completed on 2026-08-16: unit, build, 2D/anaglyph canvas, repeated-session, Touch Plus controller, and hand-pinch IWER regressions pass.
+- Step 8 physical Quest 3S acceptance remains pending and MUST be completed on current stable headset software before hardware support is declared complete.
+
+### Quest Acceptance Criteria
+
+Meta Quest 3S support is complete only when all of the following pass on a physical device using the current stable Meta Quest Browser:
+
+1. The production HTTPS URL loads without sideloading a native application.
+2. **Enter VR** appears only when `immersive-vr` is supported and opens from one visitor action.
+3. Entering and leaving VR five consecutive times does not duplicate canvases, controls, listeners, or animation loops.
+4. Head tracking is one-to-one and no application camera motion causes discomfort.
+5. Either Touch Plus controller can operate Prev, Next, Reset, Auto/Pause, recenter, preset, qubit selection, correlation-pair selection, and Exit VR.
+6. Bell, GHZ, mixed-product, random-swap, and teleportation demonstrations retain the same snapshots and measurement behavior as desktop mode.
+7. Bloch vectors animate smoothly, mixed-state vector length remains correct, and labels are readable from the default placement.
+8. The scene sustains 72 FPS during the three-sphere GHZ and teleportation demonstrations for a 10-minute session, with no repeated long-frame stutter.
+9. Controller disconnect/reconnect, browser focus loss, permission denial, and unexpected session end recover without losing the circuit.
+10. The complete visitor flow can be operated without a physical keyboard, although QASM text editing remains outside XR.
+11. After XR entry and exit, the existing Stereo toggle still enables red/cyan anaglyph rendering on an ordinary display, and eye separation, focus, red gain, cyan gain, and reset calibration behave as before.
+
+---
+
 ## Display Modes
 
 ### Standard 2D Mode
@@ -742,6 +1005,8 @@ The exact simulator state is not modified for visual interpolation.
 
 Stereo mode uses a local adjustable anaglyph effect based on Three.js `AnaglyphEffect`.
 Stereo rendering uses perspective camera projection to preserve comfortable depth cues.
+
+This mode is the supported path for conventional red-blue/red-cyan 3D glasses and remains available independently of Meta Quest support. It MUST continue to switch on and off without restarting the application. WebXR implementation work MUST preserve its shader, perspective-camera behavior, calibration ranges, keyboard toggle, and toolbar controls.
 
 The UI exposes:
 
@@ -771,6 +1036,12 @@ Recommended calibration workflow for anaglyph stereo:
 3. Adjust eye separation until the Bloch sphere, floor grid, and bounding cube have clear but comfortable parallax.
 4. Adjust stereo focus so axis labels, grid lines, and the Bloch vector remain stable and readable.
 5. Verify that Bloch sphere labels, grid lines, vector, floor grid, and bounding cube remain readable.
+
+### Meta Quest WebXR Mode
+
+WebXR mode uses true binocular stereo supplied by the headset runtime. It uses a perspective XR camera and tracked head pose, ignores the desktop eye-separation/focus/channel-gain settings, and shows no anaglyph calibration controls inside XR.
+
+The 2D browser page remains the launch and recovery surface. Switching into or out of WebXR MUST NOT restart the application or recalculate the circuit unless the visitor changes the circuit or enters a measurement step under the existing resampling rules.
 
 ---
 
@@ -1046,6 +1317,22 @@ npx playwright install chromium
 node scripts/verify-canvas.mjs
 ```
 
+### WebXR Verification
+
+Automated desktop checks SHOULD cover:
+
+- capability probe states: absent, supported, unsupported, and rejected
+- session start/end cleanup and repeated entry
+- command mapping and one-press/one-action debouncing
+- closest-hit ray selection
+- controller connect/disconnect
+- reference-space reset handling
+- preservation of execution state across XR entry and exit
+- desktop/anaglyph rendering after the animation-loop migration
+- red/cyan anaglyph toggle and calibration behavior before and after an XR session
+
+The Meta Immersive Web Emulator or IWER MAY be used for headset, controller, and hand-input regression tests on desktop Chromium. Emulation does not replace the physical Quest 3S acceptance pass because frame timing, optical readability, tracking comfort, browser lifecycle behavior, and thermal performance require the target headset.
+
 ---
 
 ## Performance Targets
@@ -1054,6 +1341,7 @@ The system should maintain:
 
 - 60 FPS in 2D mode
 - at least 45 FPS in stereo mode
+- stable 72 FPS in Meta Quest 3S WebXR mode
 
 for:
 
@@ -1066,6 +1354,8 @@ Performance guidance:
 - keep exact simulation separate from visualization interpolation
 - avoid unnecessary React rerenders in the render loop
 - keep object allocation out of hot frame paths where practical
+
+For Quest, the 72 FPS frame budget is approximately `13.9 ms`. Frame-time measurements SHOULD separate simulation/update CPU time from render CPU/GPU pressure. Acceptance testing uses the heaviest supported three-sphere exhibit presets, not an empty scene.
 
 ---
 
@@ -1090,8 +1380,23 @@ Potential future work:
 - GPU acceleration
 - tensor-network backend
 - additional noise channels
-- WebXR
+- passthrough mixed reality after the `immersive-vr` milestone
+- direct in-XR circuit and QASM editing
+- advanced WebXR features such as anchors, room meshing, and multi-user colocated sessions
 - quantum error correction visualization
+
+---
+
+## WebXR References
+
+The Quest plan is based on the following primary or project-maintainer references. Browser capabilities MUST still be probed at runtime because optional WebXR modules may change independently of this specification.
+
+- [W3C WebXR Device API](https://www.w3.org/TR/webxr/)
+- [Three.js WebXRManager](https://threejs.org/docs/pages/WebXRManager.html)
+- [Three.js VR content guide](https://threejs.org/manual/en/how-to-create-vr-content.html)
+- [Three.js VRButton](https://threejs.org/docs/pages/VRButton.html)
+- [Meta Immersive Web Emulation Runtime](https://meta-quest.github.io/immersive-web-emulation-runtime/)
+- [Meta Quest performance frame budgets](https://developers.meta.com/horizon/documentation/unreal/po-perf-opt-mobile/)
 
 ---
 
@@ -1106,6 +1411,8 @@ The project is successful when users can:
 5. follow teleportation step by step
 6. use stereoscopic mode comfortably
 7. operate the system in a browser with exhibition-friendly controls
+8. enter and leave an immersive Meta Quest 3S presentation without losing circuit state
+9. inspect and step through the core educational presets in VR using either Touch Plus controller
 
 The project is not judged primarily by:
 

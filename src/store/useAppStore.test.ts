@@ -72,3 +72,19 @@ describe("stereo calibration", () => {
     expect(useAppStore.getState().stereoSettings).toEqual(DEFAULT_STEREO_SETTINGS);
   });
 });
+
+describe("shared visualization selection", () => {
+  it("keeps XR and desktop qubit/correlation selections in validated shared state", () => {
+    useAppStore.getState().loadPreset("ghz");
+    useAppStore.getState().setVisibleQubits([2, 0]);
+    useAppStore.getState().setCorrelationPair([1, 2]);
+
+    expect(useAppStore.getState().visibleQubits).toEqual([0, 2]);
+    expect(useAppStore.getState().correlationPair).toEqual([1, 2]);
+
+    useAppStore.getState().setVisibleQubits([8]);
+    useAppStore.getState().setCorrelationPair([2, 2]);
+    expect(useAppStore.getState().visibleQubits).toEqual([0, 2]);
+    expect(useAppStore.getState().correlationPair).toEqual([1, 2]);
+  });
+});

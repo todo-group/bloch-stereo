@@ -35,6 +35,9 @@ Bloch Stereo は、教育・デモ・科学館展示向けのブラウザベー�
 - `|0>` が上になる向きへ戻す Bloch view reset
 - ボタンで開く QASM editor modal
 - 左側の circuit editor panel の hide/show button
+- Touch Plusコントローラーのレイ操作と任意のハンドピンチに対応したMeta Quest 3S WebXR表示
+- VR内の実行、再センタリング、プリセット、表示量子ビット、相関ペア操作
+- WebXRとは独立して既存の赤シアンメガネ表示を継続サポート
 
 ## プリセット
 
@@ -170,6 +173,24 @@ npx playwright install chromium
 node scripts/verify-canvas.mjs
 ```
 
+## Meta Quest 3S
+
+production buildをHTTPSで配信し、最新のMeta Quest Browserで開いて **Enter VR** を選択します。没入表示ではヘッドセット本来の両眼立体視を使用し、既存の赤シアンアナグリフ表示も通常ディスプレイ向けに引き続き利用できます。
+
+初期のVRインターフェースは再生と可視化に対応します。回路作成とQASMテキスト編集は2Dブラウザ画面で行います。
+
+開発時は次のURLでWebXRエミュレーションを有効にできます。
+
+```txt
+http://localhost:5173/?emulate-xr=1
+```
+
+開発サーバー起動後、IWER回帰試験を実行します。
+
+```sh
+npm run verify:webxr
+```
+
 ## プロジェクト構成
 
 ```txt
@@ -197,7 +218,7 @@ doc/
 - full density matrix UI
 - OpenQASM 3
 - Stream Deck hardware integration
-- WebXR
+- passthrough mixed reality と完全なVR内回路編集
 - GPU acceleration
 - tensor-network backend
 
