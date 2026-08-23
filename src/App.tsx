@@ -243,7 +243,7 @@ function StartupScreen({ onEnter, xrSupport }: { onEnter: () => void; xrSupport:
     <p className="startup-mode-note">{xrSupport === "supported" ? "VR ready" : xrSupport === "unsupported" ? "Anaglyph stereo ready" : "Checking display capabilities…"}</p>
     <div className="startup-credit">
       <span>Produced by</span>
-      <img className="startup-sqai-logo" src={`${import.meta.env.BASE_URL}assets/sqai-basic-en-rgb350ppi.png`} alt="SQAI" />
+      <img className="startup-sqai-logo" src={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/assets/sqai-basic-en-rgb350ppi.png`} alt="SQAI" />
     </div>
   </div></section>;
 }
