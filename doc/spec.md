@@ -1,7 +1,7 @@
 # Bloch Stereo Quantum Circuit Editor Specification
 
 Version: 0.7
-Last updated: 2026-08-16
+Last updated: 2026-08-23
 
 ---
 
@@ -1303,6 +1303,73 @@ npm run test
 Run:
 
 ```sh
+npm run build
+```
+
+### Application Version Update
+
+The Bloch Stereo application version is defined by the top-level `version` field in
+`package.json`. Vite exposes this value as `__APP_VERSION__`, and the startup screen
+displays it as `Version x.y.z`. The `Version: 0.7` value at the top of this document is
+the specification revision and is independent of the application version.
+
+Use npm to update the application version so that `package.json` and
+`package-lock.json` remain synchronized. For example, to update the application to
+version `1.0.2`, run:
+
+```sh
+npm version 1.0.2 --no-git-tag-version
+```
+
+Use semantic versioning when selecting the new value:
+
+- patch (`1.0.1` → `1.0.2`) for backward-compatible fixes
+- minor (`1.0.1` → `1.1.0`) for backward-compatible features
+- major (`1.0.1` → `2.0.0`) for incompatible changes
+
+After updating the version, verify the synchronized files and the production build:
+
+```sh
+npm pkg get version
+git diff -- package.json package-lock.json
+npm run typecheck
+npm test
+npm run build
+```
+
+Commit both `package.json` and `package-lock.json`. For a GitHub Pages production
+release, merge the version commit into `main`, then create and push a matching
+`v`-prefixed tag such as `v1.0.2`. See `doc/github-pages.md` for the complete release
+procedure.
+
+### Deployment Base Path
+
+The production build reads the `BASE_PATH` environment variable and passes it to Vite's `base` setting. Use it when the generated `dist/` directory will be served below a web-server subdirectory instead of the domain root.
+
+For example, when the application will be available at `https://example.org/exhibits/bloch-stereo/`, build it with:
+
+```sh
+BASE_PATH=/exhibits/bloch-stereo/ npm run build
+```
+
+The leading and trailing `/` are recommended for a server-root-relative deployment path. The generated asset URLs will then use `/exhibits/bloch-stereo/` as their base.
+
+To generate location-independent relative asset URLs, use `./`:
+
+```sh
+BASE_PATH=./ npm run build
+```
+
+If `BASE_PATH` is omitted, the default is `/`, which assumes deployment at the domain root:
+
+```sh
+npm run build
+```
+
+In PowerShell, set the same environment variable before running the build:
+
+```powershell
+$env:BASE_PATH="/exhibits/bloch-stereo/"
 npm run build
 ```
 
