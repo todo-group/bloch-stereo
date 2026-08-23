@@ -7,7 +7,7 @@ import { BlochSphereStereo } from "./stereo/BlochSphereStereo";
 import { useAppStore } from "./store/useAppStore";
 import type { PresetName, UserPreset } from "./store/useAppStore";
 import type { XrSupportState } from "./xr/XrCapability";
-import type { StereoSettings } from "./circuit/types";
+import type { DisplayMode, StereoSettings } from "./circuit/types";
 import { blochVectorsForDensityMatrix, blochVectorsForState, correlationMatrix, correlationMatrixFromDensityMatrix } from "./circuit/simulator/density";
 
 const builtInPresetOptions: Array<{ value: PresetName; label: string }> = [
@@ -18,6 +18,7 @@ const builtInPresetOptions: Array<{ value: PresetName; label: string }> = [
 ];
 
 type AppScreen = "startup" | "visualization" | "editor";
+type VisualizationMode = DisplayMode | "xr";
 type HoverActivatableElement = HTMLButtonElement | HTMLSelectElement;
 
 function activateHoveredControl(): boolean {
@@ -42,7 +43,8 @@ export function App() {
   const [loop, setLoop] = useState(false);
   const [playIntroOrbit, setPlayIntroOrbit] = useState(false);
   const [xrSupport, setXrSupport] = useState<XrSupportState>("checking");
-  const xrStarterRef = useRef<() => Promise<boolean>>(async () => false);
+  const xrStarterRef = useRef<(introOrbit?: boolean) => Promise<boolean>>(async () => false);
+  const lastVisualizationModeRef = useRef<VisualizationMode>("anaglyph-red-green");
   const snapshot = snapshots[currentStep] ?? snapshots[0];
   const allBlochVectors = snapshot.densityMatrix
     ? blochVectorsForDensityMatrix(snapshot.densityMatrix, circuit.numQubits)
@@ -50,10 +52,6 @@ export function App() {
   const effectiveVisibleQubits = useMemo(
     () => Array.from({ length: Math.min(3, circuit.numQubits) }, (_, qubit) => qubit),
     [circuit.numQubits],
-  );
-  const presetOptions = useMemo(
-    () => [...builtInPresetOptions, ...userPresets.map(({ value, label }) => ({ value, label }))],
-    [userPresets],
   );
   const blochVectors = effectiveVisibleQubits.map((qubit) => allBlochVectors[qubit]);
   const validCorrelationPair: [number, number] =
@@ -66,22 +64,11 @@ export function App() {
     : undefined;
   const isStereoMode = displayMode === "anaglyph-red-green";
 
-  const cycleXrPreset = () => {
-    const index = presetOptions.findIndex((preset) => preset.value === selectedPreset);
-    loadPreset(presetOptions[(index + 1) % presetOptions.length].value);
-  };
-  const cycleXrPair = () => {
-    if (effectiveVisibleQubits.length < 2) return;
-    const pairs: Array<[number, number]> = [];
-    for (let first = 0; first < effectiveVisibleQubits.length; first += 1) {
-      for (let second = first + 1; second < effectiveVisibleQubits.length; second += 1) pairs.push([first, second]);
-    }
-    const index = pairs.findIndex(([first, second]) => first === validCorrelationPair[0] && second === validCorrelationPair[1]);
-    setCorrelationPair(pairs[(index + 1) % pairs.length]);
-  };
-
   useEffect(() => {
-    if (xrSupport === "unsupported") setDisplayMode("anaglyph-red-green");
+    if (xrSupport === "unsupported") {
+      setDisplayMode("anaglyph-red-green");
+      if (lastVisualizationModeRef.current === "xr") lastVisualizationModeRef.current = "anaglyph-red-green";
+    }
   }, [setDisplayMode, xrSupport]);
 
   useEffect(() => {
@@ -93,7 +80,7 @@ export function App() {
     }
     const timer = window.setTimeout(() => {
       const current = useAppStore.getState();
-      if (loop && current.currentStep >= current.snapshots.length - 1) useAppStore.setState({ currentStep: 0, autoplay: true });
+      if (loop && current.currentStep >= current.snapshots.length - 1) current.restartLoopCycle();
       else {
         const willReachEnd = loop && current.currentStep + 1 >= current.snapshots.length - 1;
         current.nextStep();
@@ -115,22 +102,24 @@ export function App() {
       else if (event.key === "+" || event.code === "NumpadAdd") { event.preventDefault(); addGate(); }
       else if (event.key === "e" || event.key === "E") {
         event.preventDefault();
-        stopAutoplay();
-        setLoop(false);
-        setPlayIntroOrbit(false);
-        setScreen((current) => current === "editor" ? "visualization" : "editor");
+        if (screen === "editor") returnToBlochView(); else openEditor();
       }
-      else if (event.key === "s" || event.key === "S") { event.preventDefault(); setDisplayMode(displayMode === "2d" ? "anaglyph-red-green" : "2d"); }
+      else if (event.key === "s" || event.key === "S") {
+        event.preventDefault();
+        if (displayMode === "2d") selectAnaglyph(); else select2d();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [addGate, displayMode, nextStep, previousStep, resetExecution, screen, setDisplayMode, stopAutoplay]);
 
-  const enterApplication = async () => {
-    if (xrSupport === "supported") await xrStarterRef.current(); else setDisplayMode("anaglyph-red-green");
-    setPlayIntroOrbit(true);
+  async function enterApplication() {
+    let enteredXr = false;
+    if (xrSupport === "supported") enteredXr = await activateVr(true);
+    else selectAnaglyph();
+    setPlayIntroOrbit(!enteredXr);
     setScreen("visualization");
-  };
+  }
 
   const toggleLoop = () => {
     if (loop) {
@@ -140,16 +129,42 @@ export function App() {
     }
     setLoop(true);
     const current = useAppStore.getState();
-    if (current.currentStep >= current.snapshots.length - 1) useAppStore.setState({ currentStep: 0, autoplay: true });
+    if (current.currentStep >= current.snapshots.length - 1) current.restartLoopCycle();
     else if (!current.autoplay) current.toggleAutoplay();
   };
 
-  const openEditor = () => {
+  function openEditor() {
     stopAutoplay();
     setLoop(false);
     setPlayIntroOrbit(false);
     setScreen("editor");
-  };
+  }
+
+  function returnToBlochView() {
+    stopAutoplay();
+    setLoop(false);
+    setPlayIntroOrbit(false);
+    setScreen("visualization");
+    const previousMode = lastVisualizationModeRef.current;
+    if (previousMode === "xr" && xrSupport === "supported") void activateVr();
+    else setDisplayMode(previousMode === "xr" ? "anaglyph-red-green" : previousMode);
+  }
+
+  async function activateVr(introOrbit = false): Promise<boolean> {
+    const entered = await xrStarterRef.current(introOrbit);
+    if (entered) lastVisualizationModeRef.current = "xr";
+    return entered;
+  }
+
+  function select2d() {
+    lastVisualizationModeRef.current = "2d";
+    setDisplayMode("2d");
+  }
+
+  function selectAnaglyph() {
+    lastVisualizationModeRef.current = "anaglyph-red-green";
+    setDisplayMode("anaglyph-red-green");
+  }
 
   return (
     <main className={`app-shell screen-${screen}`}>
@@ -159,31 +174,40 @@ export function App() {
             <Brand compact />
             <PresetSelector selectedPreset={selectedPreset} userPresets={userPresets} loadPreset={loadPreset} saveUserPreset={saveUserPreset} />
             <StereoCalibration isStereoMode={isStereoMode} xrSupport={xrSupport} stereoSettings={stereoSettings} setStereoSettings={setStereoSettings} resetStereoSettings={resetStereoSettings} />
-            <button type="button" className="mode-switch primary-action" onClick={() => { stopAutoplay(); setPlayIntroOrbit(false); setScreen("visualization"); }}><Eye aria-hidden="true" />Bloch View</button>
+            <button type="button" className="mode-switch primary-action" onClick={returnToBlochView}><Eye aria-hidden="true" />Bloch View</button>
           </header>
           <section className="editor-workspace"><CircuitEditor /></section>
         </>
-      ) : (
-        <section className="visualization-screen" aria-label="Bloch visualization" aria-hidden={screen === "startup"}>
+      ) : null}
+      <section className="visualization-screen" aria-label="Bloch visualization" aria-hidden={screen !== "visualization"} hidden={screen === "editor"}>
           <BlochSphereStereo
-            vectors={blochVectors} labels={effectiveVisibleQubits.map((qubit) => `q${qubit}`)} qubitIndices={effectiveVisibleQubits}
+            circuit={circuit} vectors={blochVectors} labels={effectiveVisibleQubits.map((qubit) => `q${qubit}`)} qubitIndices={effectiveVisibleQubits}
             displayMode={displayMode} stereoSettings={stereoSettings} activeStep={currentStep} introOrbit={playIntroOrbit}
+            correlationMatrix={correlations} correlationPair={validCorrelationPair}
             onXrSupportChange={setXrSupport} onXrStarterChange={(startXr) => { xrStarterRef.current = startXr; }}
             xrPanelState={{
-              step: currentStep, totalSteps: Math.max(0, snapshots.length - 1), canPrevious: currentStep > 0,
-              canNext: currentStep < snapshots.length - 1, canSelectPair: circuit.numQubits === 3, autoplay,
-              activeOperation: snapshot.appliedOp?.name.toUpperCase() ?? "INITIAL",
-              presetLabel: presetOptions.find((preset) => preset.value === selectedPreset)?.label ?? "Custom",
-              pairLabel: circuit.numQubits >= 2 ? `q${validCorrelationPair[0]}/q${validCorrelationPair[1]}` : "N/A",
-              classicalLabel: snapshot.classicalBits.map((bit, index) => `c${index}:${bit}`).join(" "),
-              correlationLabel: correlations ? `C ${correlations.flat().map((value) => value.toFixed(1)).join(" ")}` : "C N/A",
+              canPrevious: currentStep > 0,
+              canNext: currentStep < snapshots.length - 1,
+              canAutoplay: snapshots.length > 1,
+              autoplay,
+              loop,
             }}
-            xrActions={{ previousStep, nextStep, reset: resetExecution, toggleAutoplay, stopAutoplay, cyclePreset: cycleXrPreset, cyclePair: cycleXrPair }}
+            xrActions={{
+              previousStep,
+              nextStep,
+              reset: resetExecution,
+              toggleAutoplay,
+              toggleLoop,
+              stopAutoplay,
+              show2d: select2d,
+              openEditor,
+              selectCorrelationPair: setCorrelationPair,
+            }}
           />
           <div className="visual-brand floating-panel"><Brand compact /></div>
           <div className="visual-mode-controls floating-panel" aria-label="Display mode">
-            <button type="button" className={displayMode !== "2d" ? "is-active" : ""} onClick={() => xrSupport === "supported" ? void xrStarterRef.current() : setDisplayMode("anaglyph-red-green")}><Eye aria-hidden="true" />{xrSupport === "supported" ? "VR" : "Stereo"}</button>
-            <button type="button" className={displayMode === "2d" ? "is-active" : ""} onClick={() => setDisplayMode("2d")}>2D</button>
+            <button type="button" className={displayMode !== "2d" ? "is-active" : ""} onClick={() => xrSupport === "supported" ? void activateVr() : selectAnaglyph()}><Eye aria-hidden="true" />{xrSupport === "supported" ? "VR" : "Stereo"}</button>
+            <button type="button" className={displayMode === "2d" ? "is-active" : ""} onClick={select2d}>2D</button>
             <button type="button" onClick={openEditor}><SlidersHorizontal aria-hidden="true" />Circuit Editor</button>
           </div>
           <div className="visual-transport floating-panel" aria-label="Execution controls">
@@ -202,8 +226,7 @@ export function App() {
             <div className="visual-circuit-heading"><span><LayoutGrid aria-hidden="true" />Quantum circuit</span><span>Gate {currentStep} / {circuit.ops.length}</span></div>
             <CircuitCanvas circuit={circuit} currentStep={currentStep} onStepSelect={setStep} readOnly compact />
           </div>
-        </section>
-      )}
+      </section>
       {screen === "startup" ? <StartupScreen onEnter={() => void enterApplication()} xrSupport={xrSupport} /> : null}
     </main>
   );
@@ -218,7 +241,10 @@ function StartupScreen({ onEnter, xrSupport }: { onEnter: () => void; xrSupport:
     <Brand /><p className="startup-version">Version {__APP_VERSION__}</p>
     <button type="button" className="startup-enter" onClick={onEnter}>Enter <span aria-hidden="true">→</span></button>
     <p className="startup-mode-note">{xrSupport === "supported" ? "VR ready" : xrSupport === "unsupported" ? "Anaglyph stereo ready" : "Checking display capabilities…"}</p>
-    <img className="startup-sqai-logo" src={`${import.meta.env.BASE_URL}assets/sqai-basic-en-rgb350ppi.png`} alt="SQAI" />
+    <div className="startup-credit">
+      <span>Produced by</span>
+      <img className="startup-sqai-logo" src={`${import.meta.env.BASE_URL}assets/sqai-basic-en-rgb350ppi.png`} alt="SQAI" />
+    </div>
   </div></section>;
 }
 
@@ -243,5 +269,5 @@ function StereoCalibration({ isStereoMode, xrSupport, stereoSettings, setStereoS
 }
 
 function RangeSetting({ label, value, min, max, step, digits, disabled = false, onChange }: { label: string; value: number; min: string; max: string; step: string; digits: number; disabled?: boolean; onChange: (value: number) => void }) {
-  return <label>{label}<input type="range" min={min} max={max} step={step} value={value} disabled={disabled} onChange={(event) => onChange(Number(event.currentTarget.value))} /><output>{value.toFixed(digits)}</output></label>;
+  return <label><span className="setting-label">{label}</span><input type="range" min={min} max={max} step={step} value={value} disabled={disabled} onChange={(event) => onChange(Number(event.currentTarget.value))} /><output>{value.toFixed(digits)}</output></label>;
 }

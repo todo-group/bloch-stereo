@@ -53,6 +53,21 @@ measure q[1] -> c[1];
     useAppStore.getState().nextStep();
     expect(useAppStore.getState().snapshots[4].measurementLog.map((record) => record.value)).toEqual([1, 0]);
   });
+
+  it.each(["random-swap", "teleportation"] as const)("generates a new random input state for each %s loop cycle", (preset) => {
+    let randomCall = 0;
+    vi.spyOn(Math, "random").mockImplementation(() => ((randomCall++ * 0.137) + 0.11) % 1);
+    useAppStore.getState().loadPreset(preset);
+    const firstCycleQasm = useAppStore.getState().qasmText;
+
+    useAppStore.getState().restartLoopCycle();
+    const secondCycle = useAppStore.getState();
+
+    expect(secondCycle.qasmText).not.toBe(firstCycleQasm);
+    expect(secondCycle.selectedPreset).toBe(preset);
+    expect(secondCycle.currentStep).toBe(0);
+    expect(secondCycle.autoplay).toBe(true);
+  });
 });
 
 describe("preset selection", () => {

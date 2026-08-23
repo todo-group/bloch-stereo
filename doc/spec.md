@@ -1,6 +1,6 @@
 # Bloch Stereo Quantum Circuit Editor Specification
 
-Version: 0.7
+Version: 2.0 draft
 Last updated: 2026-08-23
 
 ---
@@ -17,13 +17,13 @@ The current implementation combines:
 - step-by-step execution
 - animated Bloch-sphere visualization
 - single-qubit reduced density matrix calculations
-- two-qubit connected correlation matrix visualization
+- connected correlation matrix visualization for two- and three-qubit circuits
 - red-green anaglyph stereoscopic rendering
 - adjustable anaglyph stereo controls
 - educational Bell, GHZ, and quantum teleportation presets
 - exhibition-oriented controls with large targets
 
-Version 0.7 implements the browser-side Meta Quest 3S WebXR design. Capability probing, immersive sessions, XR controls, controller and hand input, adaptive quality, and IWER regression coverage are implemented. Physical Quest 3S acceptance remains pending; support is not considered hardware-validated until the physical-device criteria pass.
+The version 2.0 draft describes the current split between the startup screen, the visualization-focused Bloch View, and the 2D Circuit Editor. It also covers the browser-side Meta Quest WebXR presentation, including capability probing, immersive sessions, spatial controls, controller and hand input, adaptive quality, and automated IWER regression coverage. Startup, immersive display, and Touch Plus controller operation have been exercised on a physical Meta Quest 3S; the complete acceptance matrix in `doc/meta-quest.md` remains the release checklist.
 
 The system is intended for:
 
@@ -47,7 +47,7 @@ Design priorities:
 
 ## Implementation Status
 
-### Implemented In The Initial Version
+### Implemented
 
 - Vite + React + TypeScript application shell
 - Zustand application state
@@ -55,15 +55,16 @@ Design priorities:
 - gate palette and append-only gate insertion
 - gate deletion from the operation strip
 - OpenQASM 2.0 text import/export
-- left circuit editor panel hide/show toggle
+- separate Bloch View and Circuit Editor modes
+- startup screen with automatic WebXR/anaglyph selection
 - exact statevector simulation
 - density-matrix simulation backend selectable in the simulator API
 - density-matrix noise channels: `depolarize(p)`, `dephase(p)`, and `ampdamp(p)`
 - measurement probability calculation, random sampling, collapse, and classical bit updates
 - conditional execution using full classical-register integer values such as `if (c==1)`
 - execution snapshots for every step
-- previous step, next step, reset, autoplay
-- Stream Deck-friendly controls for previous, next, hovered button/select activation, mouse click, reset, editor hide/show, gate insertion, top/view/bottom camera presets, and held camera control
+- previous step, next step, reset, autoplay, and loop autoplay
+- Stream Deck-friendly keyboard controls for previous, next, hovered button/select activation, reset, mode switching, gate insertion, top/view/bottom camera presets, and held camera control
 - Three.js Bloch sphere renderer
 - semi-transparent Bloch sphere globes with latitude/longitude grids
 - smoothstep Bloch-vector animation over 400 ms
@@ -77,9 +78,10 @@ Design priorities:
 - Bloch-axis labels for `|0>`, `|1>`, `|+>`, `|->`, `|i>`, and `|-i>`
 - depth cues: floor grid, bounding cube, depth rings, and front/back markers
 - single-qubit purity display
-- selectable two-qubit connected correlation matrix
+- connected correlation matrix for two- and three-qubit circuits, with pair selection for three qubits
 - classical bit readout
-- initial-state, Bell, mixed-product, GHZ, H-CZ measurement, random-swap, and teleportation presets
+- initial-state, Bell, mixed-product, GHZ, H-CZ measurement, random-swap, teleportation, and saved user-defined presets
+- new random inputs for Random Swap and Teleportation at the start of every Loop cycle
 - random measurement sampling for the measurement being entered, while preserving earlier measurement outcomes
 - Vitest coverage for parser and simulator core behavior
 - Playwright screenshot/canvas verification script
@@ -88,12 +90,14 @@ Design priorities:
 - desktop and mobile canvas verification for both 2D and red/cyan anaglyph modes
 - WebXR capability detection and recoverable immersive session lifecycle
 - Meta Quest Touch Plus ray controls and optional hand-pinch input
-- in-XR transport, recenter, preset, visible-qubit, and correlation-pair controls
+- in-XR transport, display-mode, editor, camera-view, and correlation-pair controls
+- in-XR circuit, purity, and correlation-matrix panels
+- left- or right-controller trigger-drag rotation and thumbstick zoom
 - Quest spatial layout, fixed-foveation defaults, adaptive decoration quality, and frame-time monitoring
 - development-only Meta Quest 3 IWER runtime and automated WebXR regression script
 - English and Japanese README files with language switching
 
-### Not Implemented In The Initial Version
+### Not Yet Implemented
 
 - drag-and-drop gate movement
 - inline parameter editing UI
@@ -113,13 +117,13 @@ Design priorities:
 - non-unitary channel support in the statevector backend
 - GPU acceleration
 - tensor-network backend
-- physical Meta Quest 3S acceptance testing for the implemented WebXR presentation
+- completion of the full Meta Quest 3S acceptance checklist in `doc/meta-quest.md`
 
 ---
 
 ## Core Features
 
-The initial version supports:
+The current version supports:
 
 1. OpenQASM 2.0 import/export for the supported subset
 2. lightweight circuit editing by appending and deleting gates
@@ -153,7 +157,7 @@ Direct Stream Deck SDK support remains a future hardware integration goal.
 - browser execution
 - teleportation demonstration
 
-### Excluded From Initial Version
+### Excluded From The Current Scope
 
 - OpenQASM 3
 - custom gates
@@ -174,11 +178,9 @@ Supported display modes:
 1. standard 2D monitor
 2. red-green or red-cyan anaglyph stereoscopic display
 
-Implemented target display pending physical-device acceptance:
-
 3. Meta Quest 3S through Meta Quest Browser and WebXR `immersive-vr`
 
-The existing red/cyan anaglyph mode for red-blue 3D glasses remains a supported first-class presentation mode after Quest support is added. Anaglyph and WebXR are separate presentation paths: anaglyph post-processing MUST continue to work on ordinary 2D displays, but MUST NOT be applied during an immersive WebXR session because the XR compositor supplies the left-eye and right-eye views. Adding WebXR MUST NOT remove, hide, rename, or reduce the existing anaglyph calibration controls.
+The existing red/cyan anaglyph mode for red-blue 3D glasses remains a supported first-class presentation mode. Anaglyph and WebXR are separate presentation paths: anaglyph post-processing MUST continue to work on ordinary 2D displays, but MUST NOT be applied during an immersive WebXR session because the XR compositor supplies the left-eye and right-eye views. WebXR support MUST NOT remove, hide, rename, or reduce the existing anaglyph calibration controls.
 
 ### Meta Quest 3S
 
@@ -193,19 +195,22 @@ Meta Quest 3S is the first standalone headset target. Support means browser deli
 
 The production site MUST be delivered over HTTPS. Local development may use a browser-recognized secure localhost context or an HTTPS development endpoint reachable by the headset.
 
-The application MUST detect support with `navigator.xr?.isSessionSupported("immersive-vr")`. It MUST show **Enter VR** only when supported, show a concise unavailable state otherwise, and request the immersive session only from an explicit user action.
+The application detects support with `navigator.xr?.isSessionSupported("immersive-vr")`. The startup screen reports either **VR ready** or **Anaglyph stereo ready**. Selecting **Enter** requests an immersive session only when supported; otherwise it enters the anaglyph Bloch View.
 
-The initial Quest scope is a focused visualization and playback experience. Circuit construction, QASM text editing, and detailed numeric settings remain available in the 2D browser page before or after the immersive session. The immersive view MUST provide:
+The Quest scope is a focused visualization and playback experience. Circuit construction, QASM text editing, and detailed numeric settings remain in the 2D Circuit Editor. The immersive view provides:
 
 - previous step
 - next step
 - reset
 - autoplay/pause
-- exit VR
-- current step and active operation
-- preset selection
-- visible-qubit selection for one to three Bloch spheres
-- correlation-pair selection when at least two qubits exist
+- loop autoplay
+- transitions to 2D and Circuit Editor
+- top, default, and bottom camera views
+- current step, gate highlighting, and the quantum-circuit timeline
+- one to three Bloch spheres determined by the circuit qubit count
+- purity for each displayed qubit
+- a connected correlation matrix for circuits with at least two qubits
+- correlation-pair selection for three-qubit circuits
 
 Full in-XR gate editing, QASM keyboard entry, passthrough mixed reality, room meshing, anchors, and multi-user sessions are outside the first Quest milestone.
 
@@ -236,7 +241,8 @@ The current version supports Stream Deck use through ordinary keyboard and mouse
 - `R` or `Home` resets execution
 - `+` or numpad `+` appends the selected gate
 - `Space` activates the hovered button or selector when focus is not inside a text entry control
-- `E` toggles the left circuit editor panel
+- `E` switches between Bloch View and Circuit Editor
+- `S` switches between 2D and anaglyph stereo outside immersive VR
 - holding `C` while moving the mouse rotates the Bloch camera
 - holding `Z` while moving the mouse vertically zooms the Bloch camera
 - pointer drag rotates the Bloch camera with damping
@@ -340,6 +346,7 @@ src/
       parser.test.ts
     simulator/
       density.ts
+      densityMatrixSimulator.ts
       gates.ts
       measurement.ts
       simulator.ts
@@ -354,13 +361,17 @@ src/
     CorrelationMatrixStereo.tsx
   xr/
     XrCapability.ts
+    XrCircuitPanel.ts
     XrControlPanel.ts
+    XrCorrelationPanel.ts
     XrInteraction.ts
+    XrPurityPanel.ts
     XrQualityController.ts
     XrScene.ts
     XrSessionController.ts
     setupXrEmulation.ts
   store/
+    useAppStore.test.ts
     useAppStore.ts
   styles/
     app.css
@@ -368,6 +379,7 @@ src/
 scripts/
   generate-streamdeck-mk2.mjs
   verify-canvas.mjs
+  verify-webxr.mjs
 streamdeck/
   mk2/
 ```
@@ -384,10 +396,13 @@ src/
     XrScene.ts
     XrInteraction.ts
     XrControlPanel.ts
+    XrCircuitPanel.ts
+    XrPurityPanel.ts
+    XrCorrelationPanel.ts
     XrQualityController.ts
 ```
 
-`BlochSceneContent` will own reusable Three.js scene objects without owning a camera, renderer, DOM events, or animation loop. `BlochSphereStereo` will retain the desktop/anaglyph adapter, while `XrScene` will provide the XR camera, session lifecycle, spatial layout, and headset input. This split prevents XR behavior from becoming conditional branches throughout one monolithic renderer.
+`BlochSceneContent` owns reusable Three.js scene objects without owning a camera, renderer, DOM events, or animation loop. `BlochSphereStereo` retains the desktop/anaglyph adapter, while `XrScene` provides the XR camera, session lifecycle, spatial layout, and headset input. This split prevents XR behavior from becoming conditional branches throughout one monolithic renderer.
 
 ---
 
@@ -546,6 +561,12 @@ The editor palette currently exposes:
 
 `S+` and `T+` are displayed in the editor as the inverse phase gates and are exported as standard OpenQASM `sdg` and `tdg`.
 
+Circuit symbols distinguish operation categories:
+
+- ordinary one-qubit unitary gates use sharp-cornered square symbols
+- `dephase`, `depolarize`, and `ampdamp` use double-square channel symbols labelled `Z≈`, `XYZ≈`, and `↓`
+- measurement uses a semicircular analog-meter symbol with a needle
+
 The parser and simulator also support `id`.
 
 Noise operations are app-specific OpenQASM 2.0 extensions and require the density-matrix backend:
@@ -615,8 +636,10 @@ Only equality against the full classical register is implemented.
 - OpenQASM import/export through a modal QASM editor opened by a button
 - circuit timeline SVG
 - automatic horizontal scrolling so the current execution step remains centered where possible
-- left editor panel can be hidden to give the visualization full width
-- top-level transport controls
+- separate full-width 2D Circuit Editor mode
+- preset loading and sequentially named user presets through **SAVE**
+- Eye and Focus calibration, plus Red/Cyan gain when immersive VR is unavailable
+- direct return to the previously used Bloch View presentation mode
 
 ### Not Yet Implemented
 
@@ -630,8 +653,8 @@ Only equality against the full classical register is implemented.
 
 - horizontal axis: timestep
 - vertical axis: qubit line
-- the left editor/circuit region is intentionally narrower than the visualization region
-- the visualization region receives more horizontal space for Bloch sphere readability
+- the Circuit Editor uses the full browser page as a flat 2D workspace
+- Bloch View is a separate visualization-only mode
 
 Example:
 
@@ -708,7 +731,7 @@ where:
 a, b in {x, y, z}
 ```
 
-The UI displays the 3x3 connected correlation matrix for a user-selected qubit pair when the circuit has at least two qubits. Product states therefore display as the zero matrix.
+The UI displays the 3x3 connected correlation matrix when the circuit has at least two qubits. The pair is fixed to `q0/q1` for two-qubit circuits; three-qubit circuits allow `q0/q1`, `q0/q2`, or `q1/q2`. Product states therefore display as the zero matrix.
 
 ---
 
@@ -718,17 +741,16 @@ The UI displays the 3x3 connected correlation matrix for a user-selected qubit p
 
 The renderer displays:
 
-- one to three selected Bloch spheres
+- one to three Bloch spheres determined by the circuit qubit count
 - semi-transparent sphere surface
 - latitude lines
 - longitude lines
 - three reference axes
 - animated Bloch vector
-- in-scene qubit label above each selected sphere
+- in-scene qubit label above each sphere
 - purity label
 
-Users can choose which qubits are shown as Bloch spheres. The UI allows one to three selected qubits so the stereoscopic view stays readable.
-Selected Bloch spheres are always arranged left-to-right by qubit index, independent of selection order.
+One-qubit circuits always show `q0`, two-qubit circuits always show `q0/q1`, and three-qubit circuits always show `q0/q1/q2`. Bloch spheres are arranged left-to-right by qubit index.
 
 Users can also choose the qubit pair used for the displayed 3x3 connected correlation matrix.
 
@@ -836,8 +858,8 @@ After `requestSession` resolves and before passing the session to the renderer, 
 Session lifecycle requirements:
 
 1. Probe `immersive-vr` support after page load without opening a session.
-2. Start a session only from the visitor's **Enter VR** activation.
-3. Preserve the current circuit, execution step, selected preset, visible qubits, and correlation pair across entry and exit.
+2. Start a session only from the visitor's **Enter** or **VR** activation.
+3. Preserve the current circuit, execution step, selected preset, and correlation pair across entry and exit.
 4. Preserve autoplay on entry, but stop it when the session becomes hidden or ends so playback cannot continue unseen.
 5. Release controller, hand, ray, and session event listeners on session end.
 6. Restore the ordinary 2D canvas and controls without reloading the application.
@@ -845,7 +867,7 @@ Session lifecycle requirements:
 
 The XR session state is transient runtime state and MUST remain separate from `DisplayMode`. `DisplayMode` continues to represent `2d` or `anaglyph-red-green`; an XR session temporarily owns presentation while active. This avoids persisting an invalid `xr` display setting across reloads or unsupported devices.
 
-The current `visibleQubits` and `correlationPair` values are local React state in `App`. They MUST move into shared visualization state, or an equivalent presentation-neutral owner, before XR controls are added. Desktop and XR views MUST not maintain divergent selections.
+Displayed qubits are derived from `circuit.numQubits`, so desktop and XR presentations cannot diverge. `correlationPair` is shared through the Zustand application store and is consumed by both presentations.
 
 ### Spatial Layout And Comfort
 
@@ -859,10 +881,10 @@ Initial ergonomic layout:
 - primary content begins approximately `1.3` to `2.0 m` in front of the visitor
 - a Bloch sphere has an initial physical diameter of approximately `0.35` to `0.45 m`
 - the three-sphere layout fits within a comfortable central field of view without requiring head rotation for core transport controls
-- the control panel is below or beside the spheres and does not occlude vectors, labels, or correlations
-- content placement can be recentered from an always-available XR control
+- transport, display-mode, and camera-view control groups are placed above the spheres and do not occlude vectors, labels, or correlations
+- circuit, purity, and correlation panels remain spatially fixed while the Bloch-sphere content rotates and scales
 
-The XR experience MUST NOT implement forced locomotion, continuous artificial camera rotation, head bob, or abrupt world movement. Existing pointer-driven inertial camera controls apply only outside XR. Optional content-root rotation or scaling, if later added, MUST be damped, bounded, and disabled while a UI ray is selecting a control.
+The XR experience MUST NOT implement forced locomotion, continuous artificial camera rotation, head bob, or abrupt world movement. Content-root rotation and scaling are damped and bounded. They are disabled while a UI ray is activating a control.
 
 The current floor grid, bounding cubes, depth rings, and labels SHOULD be simplified for true binocular stereo. Their purpose is spatial reference, not decoration. Text sprites MUST face the visitor or use a stable panel orientation; they MUST remain readable without being attached to the head at an uncomfortable depth.
 
@@ -875,7 +897,7 @@ XR controls MUST meet these rules:
 - use large targets with a minimum initial face size of approximately `0.04 m` in each interactive dimension at arm's-length panel distance
 - show distinct idle, hover, pressed, disabled, and focused states without relying on red/green color discrimination
 - include text or shape cues in addition to color
-- keep **Exit VR**, **Reset**, **Prev**, **Next**, and **Pause** directly reachable
+- keep **2D**, **Circuit Editor**, **Reset**, **Prev**, **Next**, and **Pause** directly reachable
 - provide audio-free visual confirmation of activation
 - debounce activation so one trigger press advances only one step
 - prevent activation through nearer objects by choosing the closest valid ray intersection
@@ -896,6 +918,8 @@ For each connected controller, the implementation MUST use:
 
 The primary trigger activates the nearest intersected control. Either controller may operate the UI; the implementation MUST not require a fixed dominant hand. Thumbsticks and grip buttons are optional shortcuts and MUST NOT be the only way to reach a required action.
 
+Outside an interactive panel, holding either controller trigger while moving its pointer rotates the Bloch-sphere content in the drag direction. The vertical axis of either thumbstick moves the content closer or farther. Horizontal thumbstick input is intentionally unused. Panel activation takes precedence over drag rotation.
+
 Hand tracking is a progressive enhancement using `renderer.xr.getHand(index)`. A pinch may map to the same abstract `select` action as a controller trigger. If hands are lost, low-confidence, or unavailable, controls remain operable with controllers. The first milestone does not require direct grabbing of Bloch spheres or gates.
 
 All XR input paths MUST feed a presentation-neutral command layer such as:
@@ -906,8 +930,12 @@ type ExhibitionCommand =
   | "next-step"
   | "reset"
   | "toggle-autoplay"
-  | "recenter"
-  | "exit-xr";
+  | "toggle-loop"
+  | "show-2d"
+  | "open-editor"
+  | "view-top"
+  | "view-default"
+  | "view-bottom";
 ```
 
 Keyboard, Stream Deck, DOM buttons, XR controllers, and hand pinch may map into the same command layer.
@@ -938,8 +966,8 @@ The application MUST remain useful in every capability state:
 
 | State | Required behavior |
 | --- | --- |
-| No `navigator.xr` | Keep 2D/anaglyph modes; hide **Enter VR** and explain that WebXR is unavailable. |
-| `immersive-vr` unsupported | Keep browser visualization and show a non-blocking unsupported message. |
+| No `navigator.xr` | Report **Anaglyph stereo ready** on startup and enter the browser visualization when **Enter** is selected. |
+| `immersive-vr` unsupported | Keep 2D/anaglyph modes and enter the anaglyph Bloch View from startup. |
 | Session denied | Keep the circuit and step unchanged and allow retry. |
 | Controller disconnected | Continue head-tracked viewing and accept another controller or hand if available. |
 | Hand tracking unavailable | Continue with Touch Plus controllers without warning noise. |
@@ -955,9 +983,9 @@ The Quest work SHOULD be delivered in the following order:
 
 1. Extract reusable scene content and remove per-frame allocations from the render path.
 2. Convert the renderer to `setAnimationLoop` and verify unchanged desktop/anaglyph behavior.
-3. Add capability probing, **Enter VR**, XR session lifecycle, and a scaled static Bloch scene.
-4. Add controller rays and the minimum transport, exit, and recenter panel.
-5. Add step/preset/qubit/correlation status and selection controls.
+3. Add capability probing, startup **Enter**, XR session lifecycle, and a scaled static Bloch scene.
+4. Add controller rays and spatial transport, display-mode, and camera-view panels.
+5. Add circuit, purity, correlation-matrix, and correlation-pair panels.
 6. Add the Quest quality profile and frame-time instrumentation.
 7. Add optional hand pinch input.
 8. Run emulator regression tests and the physical Quest 3S acceptance pass.
@@ -967,19 +995,19 @@ Each step MUST preserve exact simulator state and both existing non-XR modes: st
 Implementation status:
 
 - Step 1 completed on 2026-08-16: reusable scene content was extracted into `BlochSceneContent`, interpolation buffers were preallocated, and 2D/anaglyph visual regression coverage was expanded.
-- Steps 2 through 7 completed on 2026-08-16: the shared animation loop, session lifecycle, spatial scene, controller panel, shared selections, adaptive quality, and optional hand pinch input were implemented.
+- Steps 2 through 7 completed on 2026-08-16 and refined through 2026-08-23: the shared animation loop, session lifecycle, spatial scene, control and information panels, adaptive quality, controller drag/zoom, and optional hand pinch input were implemented.
 - Step 8 automated coverage completed on 2026-08-16: unit, build, 2D/anaglyph canvas, repeated-session, Touch Plus controller, and hand-pinch IWER regressions pass.
-- Step 8 physical Quest 3S acceptance remains pending and MUST be completed on current stable headset software before hardware support is declared complete.
+- Basic startup, immersive presentation, and Touch Plus interaction were exercised on a physical Meta Quest 3S on 2026-08-23. The complete performance, recovery, and continuous-operation checklist in `doc/meta-quest.md` remains required for the version 2.0 release.
 
 ### Quest Acceptance Criteria
 
 Meta Quest 3S support is complete only when all of the following pass on a physical device using the current stable Meta Quest Browser:
 
 1. The production HTTPS URL loads without sideloading a native application.
-2. **Enter VR** appears only when `immersive-vr` is supported and opens from one visitor action.
+2. Startup reports **VR ready** only when `immersive-vr` is supported, and **Enter** opens the immersive view from one visitor action.
 3. Entering and leaving VR five consecutive times does not duplicate canvases, controls, listeners, or animation loops.
 4. Head tracking is one-to-one and no application camera motion causes discomfort.
-5. Either Touch Plus controller can operate Prev, Next, Reset, Auto/Pause, recenter, preset, qubit selection, correlation-pair selection, and Exit VR.
+5. Either Touch Plus controller can operate Prev, Next, Reset, Auto/Pause, Loop, 2D, Circuit Editor, Top/View/Bottom, and correlation-pair selection. Trigger-drag rotates the content and either thumbstick zooms it.
 6. Bell, GHZ, mixed-product, random-swap, and teleportation demonstrations retain the same snapshots and measurement behavior as desktop mode.
 7. Bloch vectors animate smoothly, mixed-state vector length remains correct, and labels are readable from the default placement.
 8. The scene sustains 72 FPS during the three-sphere GHZ and teleportation demonstrations for a 10-minute session, with no repeated long-frame stutter.
@@ -1047,7 +1075,7 @@ The 2D browser page remains the launch and recovery surface. Switching into or o
 
 ## Presets
 
-The current application exposes nine preset circuits from a top toolbar pull-down:
+The current application exposes nine built-in preset circuits from the Circuit Editor toolbar:
 
 1. `|0>` one-qubit initial state
 2. `|00>` two-qubit initial state
@@ -1059,7 +1087,7 @@ The current application exposes nine preset circuits from a top toolbar pull-dow
 8. random two-qubit product state followed by SWAP decomposed into three `cx` gates
 9. quantum teleportation with a random Alice input state
 
-After loading a preset, the preset pull-down keeps the selected preset visible so visitors can tell which demonstration circuit is active.
+After loading a preset, the pull-down keeps the selected preset visible so visitors can tell which demonstration circuit is active. **SAVE** appends the current circuit as `User Defined 1`, `User Defined 2`, and so on.
 
 ### Initial State Presets
 
@@ -1091,6 +1119,8 @@ qreg q[2];
 creg c[2];
 h q[0];
 cx q[0], q[1];
+measure q[0] -> c[0];
+measure q[1] -> c[1];
 ```
 
 ### Product Mixed State Preset
@@ -1104,6 +1134,8 @@ qreg q[2];
 creg c[2];
 depolarize(1) q[0];
 depolarize(1) q[1];
+measure q[0] -> c[0];
+measure q[1] -> c[1];
 ```
 
 This preset has the same single-qubit Bloch-sphere appearance as the Bell preset: both reduced states are maximally mixed and their Bloch vectors sit at the origin. Unlike the Bell preset, its connected correlation matrix is zero because it is a product state.
@@ -1126,6 +1158,9 @@ creg c[3];
 h q[0];
 cx q[0], q[1];
 cx q[0], q[2];
+measure q[0] -> c[0];
+measure q[1] -> c[1];
+measure q[2] -> c[2];
 ```
 
 ### H-CZ Measurement Preset
@@ -1171,7 +1206,7 @@ cx q[0], q[1];
 
 Each random qubit state samples `theta = acos(1 - 2u)` and `phi = 2 pi v`.
 
-The simulator also executes `swap` operations through this three-`cx` decomposition rather than a separate statevector-specialized swap path.
+Selecting the preset again or beginning another Loop cycle generates new random angles and recalculates the execution snapshots.
 
 ### Teleportation Preset
 
@@ -1185,6 +1220,8 @@ rz(phi) q[0];
 ```
 
 where `theta = acos(1 - 2u)` and `phi = 2 pi v` for independent uniform random values `u, v in [0, 1)`.
+
+Selecting the preset again or beginning another Loop cycle generates a new random Alice input state and recalculates the execution snapshots.
 
 Implemented circuit:
 
@@ -1235,7 +1272,8 @@ Implemented keyboard mappings:
 - mouse left click: Stream Deck mouse-button left click action
 - next step: `ArrowRight`
 - reset execution: `R` or `Home`
-- toggle circuit editor panel: `E`
+- switch between Bloch View and Circuit Editor: `E`
+- switch between 2D and anaglyph stereo outside immersive VR: `S`
 - add selected gate: `+` or numpad `+`
 - activate hovered button or selector: `Space`
 - top Bloch view: `T`
@@ -1281,6 +1319,42 @@ Suggested future 15-key layout:
 
 ## Testing And Verification
 
+### Development Environment And Commands
+
+Requirements:
+
+- Node.js 24 or later, matching the `engines.node` field in `package.json`
+- npm
+- a WebGL-capable browser
+
+Install dependencies:
+
+```sh
+npm install
+```
+
+Start the Vite development server:
+
+```sh
+npm run dev
+```
+
+Open the URL printed by Vite, normally `http://localhost:5173/`. Create a production build and serve it locally with:
+
+```sh
+npm run build
+npm run preview
+```
+
+Run static type checking and the complete unit-test suite with:
+
+```sh
+npm run typecheck
+npm test
+```
+
+Production deployment to GitHub Pages is documented separately in `doc/github-pages.md`.
+
 ### Unit Tests
 
 Vitest tests currently cover:
@@ -1288,9 +1362,11 @@ Vitest tests currently cover:
 - Bell-state reduced Bloch vectors and correlations
 - measurement collapse and classical bit updates
 - teleportation correction branches
+- random-input regeneration for Random Swap and Teleportation Loop cycles
 - QASM qreg size validation
 - QASM index validation
 - QASM conditional register validation
+- XR capability, session lifecycle, quality, and circuit-panel behavior
 
 Run:
 
@@ -1306,25 +1382,29 @@ Run:
 npm run build
 ```
 
+### Continuous Integration
+
+`.github/workflows/ci.yml` runs `npm ci`, type checking, unit tests, and the production build on Ubuntu, macOS, and Windows. A separate Ubuntu job installs Playwright Chromium and runs `scripts/verify-canvas.mjs` against the production preview.
+
 ### Application Version Update
 
 The Bloch Stereo application version is defined by the top-level `version` field in
 `package.json`. Vite exposes this value as `__APP_VERSION__`, and the startup screen
-displays it as `Version x.y.z`. The `Version: 0.7` value at the top of this document is
+displays it as `Version x.y.z`. The `Version: 2.0 draft` value at the top of this document is
 the specification revision and is independent of the application version.
 
 Use npm to update the application version so that `package.json` and
 `package-lock.json` remain synchronized. For example, to update the application to
-version `1.0.2`, run:
+version `2.0.0`, run:
 
 ```sh
-npm version 1.0.2 --no-git-tag-version
+npm version 2.0.0 --no-git-tag-version
 ```
 
 Use semantic versioning when selecting the new value:
 
-- patch (`1.0.1` → `1.0.2`) for backward-compatible fixes
-- minor (`1.0.1` → `1.1.0`) for backward-compatible features
+- patch (`2.0.0` → `2.0.1`) for backward-compatible fixes
+- minor (`2.0.0` → `2.1.0`) for backward-compatible features
 - major (`1.0.1` → `2.0.0`) for incompatible changes
 
 After updating the version, verify the synchronized files and the production build:
@@ -1339,7 +1419,7 @@ npm run build
 
 Commit both `package.json` and `package-lock.json`. For a GitHub Pages production
 release, merge the version commit into `main`, then create and push a matching
-`v`-prefixed tag such as `v1.0.2`. See `doc/github-pages.md` for the complete release
+`v`-prefixed tag such as `v2.0.0`. See `doc/github-pages.md` for the complete release
 procedure.
 
 ### Deployment Base Path
@@ -1399,6 +1479,18 @@ Automated desktop checks SHOULD cover:
 - red/cyan anaglyph toggle and calibration behavior before and after an XR session
 
 The Meta Immersive Web Emulator or IWER MAY be used for headset, controller, and hand-input regression tests on desktop Chromium. Emulation does not replace the physical Quest 3S acceptance pass because frame timing, optical readability, tracking comfort, browser lifecycle behavior, and thermal performance require the target headset.
+
+The development-only IWER runtime is enabled with:
+
+```txt
+http://localhost:5173/?emulate-xr=1
+```
+
+After starting the development server, run the automated WebXR regression with:
+
+```sh
+npm run verify:webxr
+```
 
 ---
 

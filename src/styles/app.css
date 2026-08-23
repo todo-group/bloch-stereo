@@ -1097,30 +1097,39 @@ input[type="number"] {
 
 .editor-stereo-settings {
   display: grid;
-  grid-template-columns: repeat(5, minmax(100px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   align-items: end;
   gap: 8px;
 }
 
 .editor-stereo-settings label {
   display: grid;
-  grid-template-columns: 38px minmax(50px, 1fr) 38px;
+  min-width: 0;
+  grid-template-columns: minmax(36px, auto) minmax(40px, 1fr) 42px;
   align-items: center;
-  gap: 5px;
+  gap: 7px;
   color: #9fb0c9;
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 800;
 }
 
+.editor-stereo-settings .setting-label {
+  white-space: nowrap;
+}
+
 .editor-stereo-settings input {
+  min-width: 0;
   width: 100%;
   accent-color: #7dd3fc;
 }
 
 .editor-stereo-settings output {
+  min-width: 42px;
   color: #f6f7fb;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
   text-align: right;
+  white-space: nowrap;
 }
 
 .editor-stereo-settings button,
@@ -1241,6 +1250,17 @@ input[type="number"] {
   border-radius: 6px;
   padding: 5px 8px;
   background: #fff;
+}
+
+.startup-credit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #9fb0c9;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
 }
 
 @media (max-width: 1180px) {

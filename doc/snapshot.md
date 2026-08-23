@@ -121,6 +121,24 @@ adb exec-out screencap -p > quest.png
 
 ## トラブルシューティング
 
+### 「開発者モードの設定」で「アップデートが必要です。」と表示される
+
+Meta Horizonアプリで開発者モードを有効にする際に「アップデートが必要です。」と表示される場合は、アプリまたはヘッドセットの更新状態、ペアリング状態、開発者アカウントの条件が反映されていない可能性がある。次の順序で確認する。
+
+1. App StoreまたはGoogle PlayでMeta Horizonアプリを最新版へ更新する
+2. Quest 3SをWi-Fiと電源に接続し、「設定」→「システム」→「ソフトウェアアップデート」で更新を確認する
+3. 更新がある場合はインストールし、Quest 3Sを再起動する
+4. Meta Horizonアプリを完全に終了して起動し直し、Quest 3Sが接続済みのデバイスとして表示されることを確認する
+5. Meta HorizonアプリとQuest 3Sで同じMetaアカウントを使用していることを確認する
+6. [Meta Horizon Developer Dashboard](https://developers.meta.com/horizon/manage/)で、使用中のMetaアカウントが開発者チームに所属し、アカウント確認を完了していることを確認する
+7. Meta Horizonアプリで「ヘッドセットの設定」→「開発者モード」を開き直して有効にする
+
+改善しない場合は、スマートフォンとQuest 3Sの両方を再起動してから再試行する。それでも表示が変わらない場合は、Meta Horizonアプリへの再ログインまたは再インストールを行い、Quest 3Sを再度ペアリングする。
+
+工場出荷状態へのリセットは端末内のデータを消去するため、最初の対処としては行わない。上記の手順でも解消しない場合は、MetaサポートへMeta HorizonアプリとQuest 3Sのバージョン、表示されたエラー、実施済みの手順を添えて問い合わせる。
+
+開発者モードの最新の前提条件と設定画面は、Meta公式の[Device Setup](https://developers.meta.com/horizon/documentation/native/android/mobile-device-setup/)を参照する。
+
 ### Quest 3Sが認識されない
 
 ```bash

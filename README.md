@@ -2,7 +2,7 @@
   <img src="doc/bloch-stereo-logo.svg" alt="Bloch Stereo logo" width="96" height="96">
 </p>
 
-# Bloch Stereo Quantum Circuit Editor
+# Bloch Stereo
 
 [English](README.md) | [日本語](README-ja.md)
 
@@ -13,212 +13,93 @@
 [![React](https://img.shields.io/npm/v/react?label=react&logo=react)](https://www.npmjs.com/package/react)
 [![Vite](https://img.shields.io/npm/v/vite?label=vite&logo=vite)](https://www.npmjs.com/package/vite)
 
-Bloch Stereo is a browser-based quantum circuit editor and stereoscopic Bloch-sphere visualizer for education, demonstrations, and science exhibitions.
+Bloch Stereo is a browser-based quantum-circuit editor and stereoscopic Bloch-sphere visualizer for education, demonstrations, and science exhibitions.
 
-It focuses on small circuits where reduced density matrices, measurement collapse, connected correlations, and quantum teleportation can be understood visually.
+It helps users follow quantum-state evolution, reduced single-qubit states, purity, correlations, measurement collapse, and quantum teleportation in small circuits.
 
 ## Features
 
-- OpenQASM 2.0 import/export
-- Step-by-step circuit execution with previous, next, reset, autoplay, and arrow-key navigation
-- Stream Deck-friendly controls: `ArrowLeft`, `S`, `ArrowRight`, `R`/`Home`, `E`, `+`, `T`, `C`, `V`, `Z`, and `B`
-- Density-matrix simulation backend by default, with a statevector backend still available in the simulator API
-- Density-matrix noise channels: `depolarize(p)`, `dephase(p)`, and `ampdamp(p)`
-- Smooth Bloch-vector animation from reduced single-qubit density matrices
-- Selectable Bloch-sphere display for one to three qubits
-- Selectable two-qubit connected correlation matrix
-- Random measurement sampling when entering measurement steps, while preserving earlier measurement outcomes
-- Red/cyan anaglyph stereo mode with eye separation, focus, red gain, and cyan gain controls
-- Bloch view reset button that restores the camera with `|0>` upward
-- QASM editor modal opened from the circuit editor
-- Hide/show button for the left circuit editor panel
-- Meta Quest 3S immersive WebXR presentation with Touch Plus controller rays and optional hand pinch input
-- In-VR transport, recenter, preset, visible-qubit, and correlation-pair controls
-- Existing red/cyan glasses mode remains available independently of WebXR
-
-## Presets
-
-The preset pull-down currently includes:
-
-- `|0>`
-- `|00>`
-- `|000>`
-- Bell state generation
-- Product mixed state `I/2 x I/2`
-- GHZ state generation
-- H-CZ measurement circuit
-- Random two-qubit state followed by SWAP decomposed into three `cx` gates
-- Quantum teleportation with a random Alice input state
-
-Choosing the teleportation or random-swap preset again generates a fresh random input state.
-
-## Circuit Editor
-
-The editor supports:
-
-- gate palette
-- target qubit selector
-- control qubit selector only for controlled/two-qubit gates
-- degree input for `rx`, `ry`, and `rz`
-- probability input for noise channels
-- append selected gate
-- delete existing gates
-- timeline step selection with automatic horizontal scrolling
-- QASM import/export through the modal editor
-
-Displayed gate buttons include `H`, `X`, `Y`, `Z`, `S`, `S+`, `T`, `T+`, `RX`, `RY`, `RZ`, `CX`, `CZ`, `DEP`, `PHASE`, `DAMP`, and measurement. `S+` and `T+` are exported as standard OpenQASM `sdg` and `tdg`.
-
-The parser and simulator also support `id` and `swap`. The SWAP button is intentionally not shown in the palette; the random-swap preset uses the three-`cx` decomposition.
-
-## Stream Deck
-
-Core actions can be triggered by configuring Stream Deck buttons to send keyboard shortcuts:
-
-- previous step: `ArrowLeft`
-- toggle stereo mode: `S`
-- next step: `ArrowRight`
-- reset execution: `R` or `Home`
-- toggle circuit editor panel: `E`
-- add selected gate: `+` or numpad `+`
-- activate the hovered button or selector: `Space`
-- top Bloch view: `T`
-- rotate Bloch view while held: `C` + mouse move
-- restore Bloch view: `V`
-- zoom Bloch view while held: `Z` + vertical mouse move
-- bottom Bloch view: `B`
-
-Direct Stream Deck SDK integration is still future work.
-
-Generate MK.2 key icons, a keymap file, and an importable Stream Deck profile:
-
-```sh
-npm run streamdeck:mk2
-```
-
-The generated assets are written to `streamdeck/mk2/`, including `Bloch Stereo MK2.streamDeckProfile` for direct import.
-
-## Visualization
-
-Each Bloch sphere plots the selected qubit's reduced density matrix. Entangled qubits therefore appear as mixed states with shortened Bloch vectors.
-
-For a selected qubit pair, the 3x3 matrix displays connected correlations:
-
-```txt
-C_ab = <sigma_a tensor sigma_b> - <sigma_a><sigma_b>
-```
-
-Product states display as the zero matrix.
-
-## OpenQASM Support
-
-Supported OpenQASM scope:
-
-- one quantum register
-- one classical register
-- `id`, `x`, `y`, `z`, `h`, `s`, `sdg`, `t`, `tdg`
-- `rx(theta)`, `ry(theta)`, `rz(theta)`
-- app-specific noise extensions: `depolarize(p)`, `dephase(p)`, `ampdamp(p)`
-- `cx`, `cz`, `swap`
-- `measure q[i] -> c[j]`
-- `if (c==n)` conditions over the full little-endian classical register value
-
-The simulator is designed for educational circuits of roughly 1 to 8 qubits and up to about 200 gates.
+- Separate **Bloch View** and **Circuit Editor** modes
+- A startup screen that enters immersive VR when available, or red/cyan anaglyph stereo otherwise
+- Standard 2D, red/cyan anaglyph stereo, and immersive WebXR presentation
+- One to three Bloch spheres, automatically matched to the circuit's qubit count
+- Purity for each displayed qubit and a connected correlation matrix for two- and three-qubit circuits
+- Step controls: Prev, Auto/Pause, Next, Reset, and Loop
+- Top, View, and Bottom camera presets, pointer-drag rotation, and zoom
+- Smooth Bloch-vector animation between exact execution steps
+- A circuit timeline that highlights the current gate in orange and scrolls with long circuits
+- A 2D circuit editor for single-qubit gates, controlled gates, noise channels, and measurement
+- OpenQASM import/export and reusable user-defined presets
+- Random measurement outcomes with consistent collapse and classical-register updates
+- Meta Quest WebXR controls, circuit display, purity display, and correlation-pair selection
+- Touch Plus interaction with either controller: trigger-drag rotation and thumbstick zoom
 
 ## Running
 
-Requirements:
+Open [https://todo-group.github.io/bloch-stereo/](https://todo-group.github.io/bloch-stereo/) in a browser. No installation is required.
 
-- Node.js 20 or later
-- npm
-- A WebGL-capable browser
+1. Select **Enter** on the startup screen.
+2. On a supported VR headset, Bloch Stereo enters immersive VR. Otherwise, it opens in red/cyan anaglyph stereo mode.
+3. Use **VR/Stereo** and **2D** to change the presentation, or select **Circuit Editor** to edit the circuit.
 
-Install dependencies:
+Red/cyan glasses are required for the anaglyph depth effect. Without glasses, select **2D**.
 
-```sh
-npm install
-```
+### Tested environments
 
-Start the development server:
+| Environment | Verified functions |
+| --- | --- |
+| macOS with Google Chrome | Startup, 2D view, red/cyan anaglyph view, and Circuit Editor |
+| Meta Quest 3S with Meta Quest Browser | Startup, immersive WebXR view, and Touch Plus controller operation |
 
-```sh
-npm run dev
-```
+### Other environments expected to work
 
-Open the URL printed by Vite, usually:
+The following environments are expected to work but have not been verified by this project.
 
-```txt
-http://localhost:5173/
-```
+| Use | Expected environments |
+| --- | --- |
+| 2D and anaglyph | Current Chrome, Firefox, or Safari on macOS; current Chrome, Edge, or Firefox on Windows; current Chrome or Firefox on Linux; current Chrome on Android |
+| Standalone VR | Meta Quest 2, Meta Quest 3, and Meta Quest Pro with Meta Quest Browser; PICO 4-series headsets with a browser that supports WebXR `immersive-vr` |
+| PC VR | Chrome or Edge on a system that exposes a connected OpenXR headset—such as Meta Quest Link, HTC Vive, or Valve Index—to WebXR |
 
-Run tests:
+2D and anaglyph modes require WebGL. Immersive VR additionally requires an HTTPS page and a browser/device combination for which WebXR reports `immersive-vr` support. Browser and headset updates may affect availability.
 
-```sh
-npm run test
-```
+## Presets
 
-Build:
+The Circuit Editor includes:
 
-```sh
-npm run build
-```
+- `|0>`, `|00>`, and `|000>` initial states
+- Bell state
+- Product mixed state `I/2 x I/2`
+- GHZ state
+- H-CZ measurement circuit
+- Random two-qubit states followed by SWAP
+- Quantum teleportation with a random input state
+- User-defined presets saved with **SAVE**
 
-Optional canvas verification:
+Bell, `I/2 x I/2`, and GHZ include measurement of every qubit at the end. Random Swap and Quantum Teleportation generate fresh random input states when selected and at the start of every Loop cycle.
 
-```sh
-npx playwright install chromium
-node scripts/verify-canvas.mjs
-```
+## Bloch View
 
-## Meta Quest 3S
+Bloch View is dedicated to circuit-execution visualization.
 
-Serve the production build over HTTPS, open it in the current Meta Quest Browser, and select **Enter VR**. The immersive view uses native headset stereo; the existing red/cyan anaglyph mode remains available on ordinary displays.
+- A one-qubit circuit displays `q0`; a two-qubit circuit displays `q0` and `q1`; a three-qubit circuit displays `q0`, `q1`, and `q2`.
+- Two- and three-qubit circuits display a connected correlation matrix. For three qubits, select `q0/q1`, `q0/q2`, or `q1/q2`.
+- Each Bloch sphere displays its qubit label and purity.
+- Short circuits are shown in full. Long circuits scroll to keep the current gate visible.
+- In immersive VR, controls and circuit information appear as fixed spatial panels. They do not rotate with the Bloch spheres.
 
-The initial immersive interface supports playback and visualization. Circuit construction and QASM text editing remain in the 2D browser page.
+## Circuit Editor
 
-Desktop WebXR emulation is available during development at:
+The Circuit Editor provides a flat 2D workspace with:
 
-```txt
-http://localhost:5173/?emulate-xr=1
-```
-
-After starting the development server, run the IWER regression with:
-
-```sh
-npm run verify:webxr
-```
-
-## Project Structure
-
-```txt
-src/
-  circuit/
-    editor/
-    qasm2/
-    simulator/
-    types.ts
-  presets/
-  stereo/
-  store/
-  styles/
-scripts/
-  generate-streamdeck-mk2.mjs
-  verify-canvas.mjs
-streamdeck/
-  mk2/
-doc/
-  spec.md
-```
-
-## Roadmap
-
-Possible future work:
-
-- full density-matrix UI
-- OpenQASM 3
-- Stream Deck hardware integration
-- passthrough mixed reality and full in-XR circuit editing
-- GPU acceleration
-- tensor-network backend
+- single-qubit gates: `H`, `X`, `Y`, `Z`, `S`, `S+`, `T`, `T+`, `RX`, `RY`, and `RZ`
+- two-qubit gates: `CX` and `CZ`
+- depolarizing, dephasing, and amplitude-damping noise channels
+- measurement, target/control selection, gate addition, and gate deletion
+- rotation-angle and noise-probability inputs
+- OpenQASM import/export
+- eye separation and focus settings, plus red/cyan gain settings where applicable
+- **SAVE** for adding the current circuit to the preset list
 
 ## License
 

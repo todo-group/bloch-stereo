@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, RotateCcw } from "lucide-react";
 import * as THREE from "three";
 import { AdjustableAnaglyphEffect } from "./AdjustableAnaglyphEffect";
-import type { BlochVector, DisplayMode, StereoSettings } from "../circuit/types";
+import type { BlochVector, Circuit, DisplayMode, StereoSettings } from "../circuit/types";
 import { BlochSceneContent, SPHERE_SPACING } from "./BlochSceneContent";
 import { probeImmersiveVr, type XrSupportState } from "../xr/XrCapability";
 import { XrSessionController } from "../xr/XrSessionController";
@@ -10,17 +10,20 @@ import { XrScene, type XrSceneActions } from "../xr/XrScene";
 import type { XrPanelState } from "../xr/XrControlPanel";
 
 type BlochSphereStereoProps = {
+  circuit: Circuit;
   vectors: BlochVector[];
   labels: string[];
   qubitIndices: number[];
   displayMode: DisplayMode;
   stereoSettings: StereoSettings;
   activeStep: number;
+  correlationMatrix?: number[][];
+  correlationPair: [number, number];
   introOrbit?: boolean;
   onXrSupportChange?: (support: XrSupportState) => void;
-  onXrStarterChange?: (startXr: () => Promise<boolean>) => void;
-  xrPanelState: Omit<XrPanelState, "qualityLabel">;
-  xrActions: Omit<XrSceneActions, "exitXr">;
+  onXrStarterChange?: (startXr: (introOrbit?: boolean) => Promise<boolean>) => void;
+  xrPanelState: XrPanelState;
+  xrActions: XrSceneActions;
 };
 
 const STANDARD_CAMERA_RADIUS = 6.2;
@@ -30,12 +33,15 @@ const TOP_CAMERA_PITCH = Math.PI / 2 - 0.01;
 const BOTTOM_CAMERA_PITCH = -TOP_CAMERA_PITCH;
 
 export function BlochSphereStereo({
+  circuit,
   vectors,
   labels,
   qubitIndices,
   displayMode,
   stereoSettings,
   activeStep,
+  correlationMatrix,
+  correlationPair,
   introOrbit = false,
   onXrSupportChange,
   onXrStarterChange,
@@ -46,6 +52,7 @@ export function BlochSphereStereo({
   const sceneContentRef = useRef<BlochSceneContent | null>(null);
   const xrSceneRef = useRef<XrScene | null>(null);
   const xrSessionControllerRef = useRef<XrSessionController | null>(null);
+  const xrIntroRequestedRef = useRef(false);
   const xrRuntimeRef = useRef({ panelState: xrPanelState, actions: xrActions });
   const previousQubitIndicesRef = useRef(qubitIndices.slice());
   const modeRef = useRef(displayMode);
@@ -115,8 +122,27 @@ export function BlochSphereStereo({
   }, [qubitIndices]);
 
   useEffect(() => {
-    xrSceneRef.current?.setPanelState({ ...xrPanelState, qualityLabel: "Quality: standard" });
+    xrSceneRef.current?.setPanelState(xrPanelState);
   }, [xrPanelState]);
+
+  useEffect(() => {
+    xrSceneRef.current?.setCircuit(circuit, activeStep);
+  }, [activeStep, circuit]);
+
+  useEffect(() => {
+    xrSceneRef.current?.setPurities(vectors.map((vector, index) => ({
+      label: labels[index] ?? `q${index}`,
+      purity: vector.purity,
+    })));
+  }, [labels, vectors]);
+
+  useEffect(() => {
+    xrSceneRef.current?.setCorrelation({
+      matrix: correlationMatrix,
+      pair: correlationPair,
+      qubitCount: circuit.numQubits,
+    });
+  }, [circuit.numQubits, correlationMatrix, correlationPair]);
 
   useEffect(() => {
     if (!mountRef.current) return undefined;
@@ -150,16 +176,22 @@ export function BlochSphereStereo({
         nextStep: () => xrRuntimeRef.current.actions.nextStep(),
         reset: () => xrRuntimeRef.current.actions.reset(),
         toggleAutoplay: () => xrRuntimeRef.current.actions.toggleAutoplay(),
+        toggleLoop: () => xrRuntimeRef.current.actions.toggleLoop(),
         stopAutoplay: () => xrRuntimeRef.current.actions.stopAutoplay(),
-        cyclePreset: () => xrRuntimeRef.current.actions.cyclePreset(),
-        cyclePair: () => xrRuntimeRef.current.actions.cyclePair(),
-        exitXr: () => void sessionController.end(),
+        show2d: () => endXrThen(() => xrRuntimeRef.current.actions.show2d()),
+        openEditor: () => endXrThen(() => xrRuntimeRef.current.actions.openEditor()),
+        selectCorrelationPair: (pair) => xrRuntimeRef.current.actions.selectCorrelationPair(pair),
       },
-      { ...xrRuntimeRef.current.panelState, qualityLabel: "Quality: standard" },
+      xrRuntimeRef.current.panelState,
+      circuit,
+      activeStep,
+      vectors.map((vector, index) => ({ label: labels[index] ?? `q${index}`, purity: vector.purity })),
+      { matrix: correlationMatrix, pair: correlationPair, qubitCount: circuit.numQubits },
     );
     sessionController = new XrSessionController(renderer, {
       onSessionStarted: () => {
-        xrScene.startSession();
+        xrScene.startSession(xrIntroRequestedRef.current);
+        xrIntroRequestedRef.current = false;
         setXrError(undefined);
       },
       onSessionEnded: () => {
@@ -175,6 +207,12 @@ export function BlochSphereStereo({
     xrSceneRef.current = xrScene;
     xrSessionControllerRef.current = sessionController;
     onXrStarterChange?.(startXr);
+
+    function endXrThen(action: () => void) {
+      void sessionController.end()
+        .then(action)
+        .catch((error) => setXrError(error instanceof Error ? error.message : "Unable to leave VR."));
+    }
 
     const resize = () => {
       const bounds = mount.getBoundingClientRect();
@@ -324,7 +362,7 @@ export function BlochSphereStereo({
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("blur", onWindowBlur);
-      mount.removeChild(renderer.domElement);
+      if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
       xrSessionControllerRef.current = null;
       onXrStarterChange?.(async () => false);
       xrSceneRef.current = null;
@@ -369,15 +407,17 @@ export function BlochSphereStereo({
     setCameraView(RESET_CAMERA_YAW, RESET_CAMERA_PITCH, STANDARD_CAMERA_RADIUS);
   }
 
-  async function startXr(): Promise<boolean> {
+  async function startXr(introOrbit = false): Promise<boolean> {
     const controller = xrSessionControllerRef.current;
     if (!controller) return false;
     if (controller.isPresenting) return true;
     setXrError(undefined);
+    xrIntroRequestedRef.current = introOrbit;
     try {
       await controller.start();
       return true;
     } catch (error) {
+      xrIntroRequestedRef.current = false;
       setXrError(error instanceof Error ? error.message : "Unable to start VR.");
       return false;
     }

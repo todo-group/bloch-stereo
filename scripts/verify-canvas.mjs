@@ -20,10 +20,16 @@ try {
     const page = await browser.newPage({ viewport });
     await page.goto(url, { waitUntil: "networkidle" });
     await page.waitForSelector("canvas");
+    await page.getByText("Anaglyph stereo ready", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Enter", exact: true }).click();
+    await page.locator("main.screen-visualization").waitFor();
     for (const displayMode of displayModes) {
       if (displayMode.enableStereo) {
-        await page.getByTitle("Stereo toggle").click();
+        await page.getByRole("button", { name: "Stereo", exact: true }).click();
         await page.waitForSelector(".bloch-stage.is-stereo");
+      } else {
+        await page.getByRole("button", { name: "2D", exact: true }).click();
+        await page.waitForSelector(".bloch-stage:not(.is-stereo)");
       }
       await page.waitForTimeout(800);
 
@@ -49,6 +55,30 @@ try {
         throw new Error(`${viewport.name} ${displayMode.name} canvas check failed: ${JSON.stringify(result)}`);
       }
       console.log(`${viewport.name} ${displayMode.name}: ${JSON.stringify(result)}`);
+    }
+    if (viewport.name === "desktop") {
+      await page.getByRole("button", { name: "Circuit Editor", exact: true }).click();
+      await page.locator(".editor-workspace").waitFor();
+      const calibrationLayout = await page.evaluate(() => {
+        const rows = Array.from(document.querySelectorAll(".editor-stereo-settings label"));
+        const gaps = rows.map((row) => {
+          const label = row.querySelector(".setting-label")?.getBoundingClientRect();
+          const input = row.querySelector("input")?.getBoundingClientRect();
+          const output = row.querySelector("output")?.getBoundingClientRect();
+          if (!label || !input || !output) return { labelToInput: -1, inputToOutput: -1 };
+          return {
+            labelToInput: Math.round(input.left - label.right),
+            inputToOutput: Math.round(output.left - input.right),
+          };
+        });
+        return { ok: gaps.every((gap) => gap.labelToInput >= 4 && gap.inputToOutput >= 4), gaps };
+      });
+      const editorScreenshotPath = join(tmpdir(), "bloch-stereo-desktop-editor.png");
+      await page.screenshot({ path: editorScreenshotPath, fullPage: true });
+      if (!calibrationLayout.ok) {
+        throw new Error(`desktop editor calibration labels overlap: ${JSON.stringify(calibrationLayout)}`);
+      }
+      console.log(`desktop editor: ${JSON.stringify({ ...calibrationLayout, screenshotPath: editorScreenshotPath })}`);
     }
     await page.close();
   }

@@ -63,6 +63,7 @@ type AppState = {
   addGate: () => void;
   deleteGate: (opId: string) => void;
   resetExecution: () => void;
+  restartLoopCycle: () => void;
   nextStep: () => void;
   previousStep: () => void;
   setStep: (step: number) => void;
@@ -204,6 +205,25 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   resetExecution: () => set({ currentStep: 0, autoplay: false }),
+  restartLoopCycle: () => {
+    const state = get();
+    if (state.selectedPreset !== "random-swap" && state.selectedPreset !== "teleportation") {
+      set({ currentStep: 0, autoplay: true });
+      return;
+    }
+    const qasm = makeBuiltInPresetQasm(state.selectedPreset);
+    const circuit = parseQasm2(qasm);
+    set({
+      circuit,
+      qasmText: qasm,
+      snapshots: recalculate(circuit, state.simulationBackend),
+      currentStep: 0,
+      autoplay: true,
+      targetQubit: 0,
+      controlQubit: Math.min(1, circuit.numQubits - 1),
+      error: undefined,
+    });
+  },
   nextStep: () => {
     const state = get();
     const nextStep = Math.min(state.currentStep + 1, state.snapshots.length - 1);
