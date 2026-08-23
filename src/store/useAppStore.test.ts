@@ -2,10 +2,23 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useAppStore } from "./useAppStore";
 import { DEFAULT_STEREO_SETTINGS } from "../circuit/types";
 
-describe("execution navigation", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
+afterEach(() => {
+  vi.restoreAllMocks();
+  useAppStore.setState({ userPresets: [] });
+  useAppStore.getState().loadPreset("zero");
+});
+
+describe("initial circuit", () => {
+  it("starts from the one-qubit zero preset without gates", () => {
+    useAppStore.getState().loadPreset("zero");
+    const state = useAppStore.getState();
+    expect(state.selectedPreset).toBe("zero");
+    expect(state.circuit.numQubits).toBe(1);
+    expect(state.circuit.ops).toHaveLength(0);
   });
+});
+
+describe("execution navigation", () => {
 
   it("preserves prior measurement outcomes when sampling the next measurement", () => {
     const randomValues = [
@@ -56,6 +69,33 @@ creg c[1];
 
     expect(useAppStore.getState().selectedPreset).toBeUndefined();
   });
+
+  it.each([
+    ["bell", 2],
+    ["mixed-product", 2],
+    ["ghz", 3],
+  ] as const)("adds final measurements to %s", (preset, qubits) => {
+    useAppStore.getState().loadPreset(preset);
+    const finalOps = useAppStore.getState().circuit.ops.slice(-qubits);
+    expect(finalOps.map((op) => op.name)).toEqual(Array.from({ length: qubits }, () => "measure"));
+    expect(finalOps.map((op) => op.targets[0])).toEqual(Array.from({ length: qubits }, (_, index) => index));
+  });
+
+  it("saves sequential user-defined presets and reloads their circuits", () => {
+    useAppStore.getState().loadPreset("zero-zero");
+    useAppStore.getState().saveUserPreset();
+    const savedPreset = useAppStore.getState().userPresets[0];
+
+    expect(savedPreset.label).toBe("User Defined 1");
+    expect(useAppStore.getState().selectedPreset).toBe("user-1");
+
+    useAppStore.getState().saveUserPreset();
+    expect(useAppStore.getState().userPresets[1].label).toBe("User Defined 2");
+
+    useAppStore.getState().loadPreset("zero");
+    useAppStore.getState().loadPreset(savedPreset.value);
+    expect(useAppStore.getState().circuit.numQubits).toBe(2);
+  });
 });
 
 describe("stereo calibration", () => {
@@ -73,18 +113,14 @@ describe("stereo calibration", () => {
   });
 });
 
-describe("shared visualization selection", () => {
-  it("keeps XR and desktop qubit/correlation selections in validated shared state", () => {
+describe("correlation selection", () => {
+  it("keeps XR and desktop correlation selection in validated shared state", () => {
     useAppStore.getState().loadPreset("ghz");
-    useAppStore.getState().setVisibleQubits([2, 0]);
     useAppStore.getState().setCorrelationPair([1, 2]);
 
-    expect(useAppStore.getState().visibleQubits).toEqual([0, 2]);
     expect(useAppStore.getState().correlationPair).toEqual([1, 2]);
 
-    useAppStore.getState().setVisibleQubits([8]);
     useAppStore.getState().setCorrelationPair([2, 2]);
-    expect(useAppStore.getState().visibleQubits).toEqual([0, 2]);
     expect(useAppStore.getState().correlationPair).toEqual([1, 2]);
   });
 });

@@ -11,7 +11,6 @@ export type XrSceneActions = {
   toggleAutoplay: () => void;
   stopAutoplay: () => void;
   cyclePreset: () => void;
-  cycleQubits: () => void;
   cyclePair: () => void;
   exitXr: () => void;
 };
@@ -109,7 +108,6 @@ export class XrScene {
     else if (action === "reset") this.actions.reset();
     else if (action === "toggle-autoplay") this.actions.toggleAutoplay();
     else if (action === "cycle-preset") this.actions.cyclePreset();
-    else if (action === "cycle-qubits") this.actions.cycleQubits();
     else if (action === "cycle-pair") this.actions.cyclePair();
     else if (action === "recenter") this.recenter();
     else if (action === "exit-xr") this.actions.exitXr();

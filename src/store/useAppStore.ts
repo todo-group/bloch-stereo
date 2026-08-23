@@ -16,7 +16,7 @@ import {
   zeroZeroZeroQasm,
 } from "../presets/teleportation";
 
-export type PresetName =
+export type BuiltInPresetName =
   | "zero"
   | "zero-zero"
   | "zero-zero-zero"
@@ -26,6 +26,15 @@ export type PresetName =
   | "h-cz-measure"
   | "random-swap"
   | "teleportation";
+
+export type UserPresetName = `user-${number}`;
+export type PresetName = BuiltInPresetName | UserPresetName;
+
+export type UserPreset = {
+  value: UserPresetName;
+  label: string;
+  qasm: string;
+};
 
 type AppState = {
   circuit: Circuit;
@@ -37,7 +46,7 @@ type AppState = {
   stereoSettings: StereoSettings;
   autoplay: boolean;
   selectedPreset?: PresetName;
-  visibleQubits: number[];
+  userPresets: UserPreset[];
   correlationPair: [number, number];
   selectedGate: GateName;
   rotationAngleDegrees: number;
@@ -49,6 +58,7 @@ type AppState = {
   importQasm: () => void;
   exportCircuit: () => void;
   loadPreset: (preset: PresetName) => void;
+  saveUserPreset: () => void;
   loadTeleportation: () => void;
   addGate: () => void;
   deleteGate: (opId: string) => void;
@@ -63,8 +73,6 @@ type AppState = {
   setStereoSettings: (settings: Partial<StereoSettings>) => void;
   resetStereoSettings: () => void;
   setSelectedGate: (gate: GateName) => void;
-  toggleVisibleQubit: (qubit: number) => void;
-  setVisibleQubits: (qubits: number[]) => void;
   setCorrelationPair: (pair: [number, number]) => void;
   setRotationAngleDegrees: (degrees: number) => void;
   setNoiseProbability: (probability: number) => void;
@@ -72,28 +80,19 @@ type AppState = {
   setControlQubit: (qubit: number) => void;
 };
 
-const starterQasm = `OPENQASM 2.0;
-include "qelib1.inc";
-qreg q[2];
-creg c[2];
-h q[0];
-cx q[0], q[1];
-measure q[0] -> c[0];
-`;
-
-const initialCircuit = parseQasm2(starterQasm);
+const initialCircuit = parseQasm2(zeroQasm);
 
 export const useAppStore = create<AppState>((set, get) => ({
   circuit: initialCircuit,
-  qasmText: starterQasm,
+  qasmText: zeroQasm,
   snapshots: recalculate(initialCircuit),
   currentStep: 0,
-  displayMode: "2d",
+  displayMode: "anaglyph-red-green",
   simulationBackend: "density-matrix",
   stereoSettings: { ...DEFAULT_STEREO_SETTINGS },
   autoplay: false,
-  selectedPreset: undefined,
-  visibleQubits: [0, 1, 2],
+  selectedPreset: "zero",
+  userPresets: loadStoredUserPresets(),
   correlationPair: [0, 1],
   selectedGate: "h",
   rotationAngleDegrees: 90,
@@ -124,7 +123,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   exportCircuit: () => set(({ circuit }) => ({ qasmText: exportQasm2(circuit), error: undefined })),
 
   loadPreset: (preset) => {
-    const qasm = makePresetQasm(preset);
+    const qasm = isUserPresetName(preset)
+      ? get().userPresets.find((item) => item.value === preset)?.qasm
+      : makeBuiltInPresetQasm(preset);
+    if (!qasm) {
+      set({ error: `Preset ${preset} was not found.`, autoplay: false });
+      return;
+    }
     const circuit = parseQasm2(qasm);
     set({
       circuit,
@@ -137,6 +142,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       controlQubit: Math.min(1, circuit.numQubits - 1),
       error: undefined,
     });
+  },
+  saveUserPreset: () => {
+    const state = get();
+    const sequence = state.userPresets.length + 1;
+    const preset: UserPreset = {
+      value: `user-${sequence}`,
+      label: `User Defined ${sequence}`,
+      qasm: exportQasm2(state.circuit),
+    };
+    const userPresets = [...state.userPresets, preset];
+    storeUserPresets(userPresets);
+    set({ userPresets, selectedPreset: preset.value, qasmText: preset.qasm, error: undefined });
   },
   loadTeleportation: () => get().loadPreset("teleportation"),
 
@@ -226,23 +243,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   setStereoSettings: (settings) => set((state) => ({ stereoSettings: { ...state.stereoSettings, ...settings } })),
   resetStereoSettings: () => set({ stereoSettings: { ...DEFAULT_STEREO_SETTINGS } }),
   setSelectedGate: (gate) => set({ selectedGate: gate }),
-  toggleVisibleQubit: (qubit) =>
-    set((state) => {
-      if (qubit < 0 || qubit >= state.circuit.numQubits) return state;
-      if (state.visibleQubits.includes(qubit)) {
-        const next = state.visibleQubits.filter((item) => item !== qubit);
-        return next.length ? { visibleQubits: next } : state;
-      }
-      return { visibleQubits: [...state.visibleQubits, qubit].slice(-3) };
-    }),
-  setVisibleQubits: (qubits) =>
-    set((state) => {
-      const next = [...new Set(qubits)]
-        .filter((qubit) => Number.isInteger(qubit) && qubit >= 0 && qubit < state.circuit.numQubits)
-        .slice(0, 3)
-        .sort((first, second) => first - second);
-      return next.length ? { visibleQubits: next } : state;
-    }),
   setCorrelationPair: (pair) =>
     set((state) => {
       const [first, second] = pair;
@@ -263,7 +263,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setControlQubit: (qubit) => set({ controlQubit: qubit }),
 }));
 
-function makePresetQasm(preset: PresetName): string {
+function makeBuiltInPresetQasm(preset: BuiltInPresetName): string {
   if (preset === "zero") return zeroQasm;
   if (preset === "zero-zero") return zeroZeroQasm;
   if (preset === "zero-zero-zero") return zeroZeroZeroQasm;
@@ -273,6 +273,38 @@ function makePresetQasm(preset: PresetName): string {
   if (preset === "h-cz-measure") return hCzMeasureQasm;
   if (preset === "random-swap") return createRandomSwapQasm();
   return createTeleportationQasm();
+}
+
+function isUserPresetName(preset: PresetName): preset is UserPresetName {
+  return preset.startsWith("user-");
+}
+
+const USER_PRESETS_STORAGE_KEY = "bloch-stereo.user-presets";
+
+function loadStoredUserPresets(): UserPreset[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(USER_PRESETS_STORAGE_KEY) ?? "[]") as unknown;
+    if (!Array.isArray(stored)) return [];
+    return stored.filter(isUserPreset);
+  } catch {
+    return [];
+  }
+}
+
+function storeUserPresets(presets: UserPreset[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(USER_PRESETS_STORAGE_KEY, JSON.stringify(presets));
+  } catch {
+    // A full or disabled localStorage must not interrupt an exhibition session.
+  }
+}
+
+function isUserPreset(value: unknown): value is UserPreset {
+  if (!value || typeof value !== "object") return false;
+  const preset = value as Partial<UserPreset>;
+  return typeof preset.value === "string" && /^user-\d+$/.test(preset.value) && typeof preset.label === "string" && typeof preset.qasm === "string";
 }
 
 function shouldResampleOnStep(state: AppState, nextStep: number): boolean {

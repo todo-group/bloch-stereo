@@ -6,7 +6,9 @@ type CircuitCanvasProps = {
   circuit: Circuit;
   currentStep: number;
   onStepSelect: (step: number) => void;
-  onDeleteGate: (opId: string) => void;
+  onDeleteGate?: (opId: string) => void;
+  readOnly?: boolean;
+  compact?: boolean;
 };
 
 const COLUMN_WIDTH = 82;
@@ -14,7 +16,7 @@ const ROW_HEIGHT = 66;
 const LEFT_MARGIN = 58;
 const TOP_MARGIN = 34;
 
-export function CircuitCanvas({ circuit, currentStep, onStepSelect, onDeleteGate }: CircuitCanvasProps) {
+export function CircuitCanvas({ circuit, currentStep, onStepSelect, onDeleteGate, readOnly = false, compact = false }: CircuitCanvasProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const width = Math.max(680, LEFT_MARGIN + circuit.ops.length * COLUMN_WIDTH + 120);
   const height = TOP_MARGIN + circuit.numQubits * ROW_HEIGHT + 30;
@@ -30,7 +32,7 @@ export function CircuitCanvas({ circuit, currentStep, onStepSelect, onDeleteGate
   }, [currentStep]);
 
   return (
-    <div className="circuit-scroll" ref={scrollRef}>
+    <div className={`circuit-scroll${readOnly ? " is-read-only" : ""}${compact ? " is-compact" : ""}`} ref={scrollRef}>
       <svg width={width} height={height} role="img" aria-label="Quantum circuit timeline">
         {Array.from({ length: circuit.numQubits }, (_, qubit) => {
           const y = TOP_MARGIN + qubit * ROW_HEIGHT;
@@ -53,7 +55,7 @@ export function CircuitCanvas({ circuit, currentStep, onStepSelect, onDeleteGate
           />
         ))}
       </svg>
-      <div className="op-strip">
+      {compact ? null : <div className="op-strip">
         {circuit.ops.map((op, index) => (
           <div
             key={op.id}
@@ -63,17 +65,12 @@ export function CircuitCanvas({ circuit, currentStep, onStepSelect, onDeleteGate
               <span>{index + 1}</span>
               {formatGate(op)}
             </button>
-            <button
-              type="button"
-              className="delete-op"
-              aria-label={`Delete ${formatGate(op)}`}
-              onClick={() => onDeleteGate(op.id)}
-            >
+            {!readOnly && onDeleteGate ? <button type="button" className="delete-op" aria-label={`Delete ${formatGate(op)}`} onClick={() => onDeleteGate(op.id)}>
               <Trash2 aria-hidden="true" />
-            </button>
+            </button> : null}
           </div>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -122,6 +119,20 @@ function GateGlyph({
   }
 
   const y = TOP_MARGIN + op.targets[0] * ROW_HEIGHT;
+  if (isNoiseGate(op)) {
+    return (
+      <g className={current ? "gate-glyph is-current noise-channel-glyph" : "gate-glyph noise-channel-glyph"} onClick={onSelect}>
+        <NoiseChannelBox x={x} y={y} label={formatGateLabel(op)} />
+      </g>
+    );
+  }
+  if (op.name === "measure") {
+    return (
+      <g className={current ? "gate-glyph is-current measurement-glyph" : "gate-glyph measurement-glyph"} onClick={onSelect}>
+        <MeasurementMeter x={x} y={y} />
+      </g>
+    );
+  }
   return (
     <g className={current ? "gate-glyph is-current" : "gate-glyph"} onClick={onSelect}>
       <GateBox x={x} y={y} label={formatGateLabel(op)} />
@@ -132,10 +143,31 @@ function GateGlyph({
 function GateBox({ x, y, label }: { x: number; y: number; label: string }) {
   return (
     <g>
-      <rect x={x - 22} y={y - 22} width={44} height={44} rx={8} className="gate-box" />
+      <rect x={x - 22} y={y - 22} width={44} height={44} className="gate-box" />
       <text x={x} y={y + 6} textAnchor="middle" className="gate-label">
         {label}
       </text>
+    </g>
+  );
+}
+
+function NoiseChannelBox({ x, y, label }: { x: number; y: number; label: string }) {
+  return (
+    <g>
+      <rect x={x - 17} y={y - 26} width={42} height={42} className="gate-box noise-channel-box noise-channel-back" />
+      <rect x={x - 25} y={y - 18} width={42} height={42} className="gate-box noise-channel-box noise-channel-front" />
+      <text x={x - 4} y={y + 7} textAnchor="middle" className="gate-label noise-channel-label">{label}</text>
+    </g>
+  );
+}
+
+function MeasurementMeter({ x, y }: { x: number; y: number }) {
+  return (
+    <g>
+      <rect x={x - 22} y={y - 22} width={44} height={44} className="gate-box measurement-box" />
+      <path d={`M ${x - 14} ${y + 9} A 16 16 0 0 1 ${x + 14} ${y + 9}`} className="meter-arc" />
+      <line x1={x} y1={y + 8} x2={x + 9} y2={y - 8} className="meter-needle" />
+      <circle cx={x} cy={y + 8} r={2.5} className="meter-pivot" />
     </g>
   );
 }
@@ -150,7 +182,7 @@ function SwapMark({ x, y }: { x: number; y: number }) {
 }
 
 function formatGate(op: GateOp): string {
-  if (op.name === "measure") return `M q${op.targets[0]} -> c${op.clbits?.[0] ?? 0}`;
+  if (op.name === "measure") return `Measure q${op.targets[0]} -> c${op.clbits?.[0] ?? 0}`;
   if (op.name === "cx" || op.name === "cz") return `${op.name.toUpperCase()} q${op.controls?.[0]} -> q${op.targets[0]}`;
   if (op.name === "swap") return `SWAP q${op.targets[0]}, q${op.targets[1]}`;
   const angle = isRotationGate(op) && op.params?.[0] !== undefined ? `(${formatDegrees(op.params[0])}deg)` : "";
@@ -159,12 +191,12 @@ function formatGate(op: GateOp): string {
 }
 
 function formatGateLabel(op: GateOp): string {
-  if (op.name === "measure") return "M";
+  if (op.name === "measure") return "";
   if (op.name === "sdg") return "S+";
   if (op.name === "tdg") return "T+";
-  if (op.name === "depolarize") return "DEP";
-  if (op.name === "dephase") return "PHASE";
-  if (op.name === "ampdamp") return "DAMP";
+  if (op.name === "depolarize") return "XYZ≈";
+  if (op.name === "dephase") return "Z≈";
+  if (op.name === "ampdamp") return "↓";
   return op.name.toUpperCase();
 }
 

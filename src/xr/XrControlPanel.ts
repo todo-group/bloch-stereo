@@ -8,7 +8,6 @@ export type XrPanelAction =
   | "recenter"
   | "exit-xr"
   | "cycle-preset"
-  | "cycle-qubits"
   | "cycle-pair";
 
 export type XrPanelState = {
@@ -20,7 +19,6 @@ export type XrPanelState = {
   autoplay: boolean;
   activeOperation: string;
   presetLabel: string;
-  qubitsLabel: string;
   pairLabel: string;
   classicalLabel: string;
   correlationLabel: string;
@@ -69,9 +67,8 @@ export class XrControlPanel {
     this.addRow(topRow, 0.04);
     this.addRow(
       [
-        ["cycle-preset", "Preset", 0.4],
-        ["cycle-qubits", "Qubits", 0.36],
-        ["cycle-pair", "Pair", 0.36],
+        ["cycle-preset", "Preset", 0.58],
+        ["cycle-pair", "Pair", 0.54],
       ],
       -0.15,
     );
@@ -85,7 +82,6 @@ export class XrControlPanel {
     );
     this.updateButton("toggle-autoplay", state.autoplay ? "Pause" : "Auto");
     this.updateButton("cycle-preset", `Preset\n${state.presetLabel}`);
-    this.updateButton("cycle-qubits", `Qubits\n${state.qubitsLabel}`);
     this.updateButton("cycle-pair", `Pair\n${state.pairLabel}`);
     this.setButtonEnabled("previous-step", state.canPrevious);
     this.setButtonEnabled("next-step", state.canNext);

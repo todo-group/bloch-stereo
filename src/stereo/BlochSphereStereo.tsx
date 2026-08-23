@@ -16,6 +16,9 @@ type BlochSphereStereoProps = {
   displayMode: DisplayMode;
   stereoSettings: StereoSettings;
   activeStep: number;
+  introOrbit?: boolean;
+  onXrSupportChange?: (support: XrSupportState) => void;
+  onXrStarterChange?: (startXr: () => Promise<boolean>) => void;
   xrPanelState: Omit<XrPanelState, "qualityLabel">;
   xrActions: Omit<XrSceneActions, "exitXr">;
 };
@@ -33,6 +36,9 @@ export function BlochSphereStereo({
   displayMode,
   stereoSettings,
   activeStep,
+  introOrbit = false,
+  onXrSupportChange,
+  onXrStarterChange,
   xrPanelState,
   xrActions,
 }: BlochSphereStereoProps) {
@@ -53,6 +59,8 @@ export function BlochSphereStereo({
     targetRadius: STANDARD_CAMERA_RADIUS,
     yawVelocity: 0,
     pitchVelocity: 0,
+    introStartedAt: 0,
+    introActive: false,
   });
   const pointerRef = useRef({ dragging: false, x: 0, y: 0 });
   const viewportRef = useRef({ width: 1, height: 1, aspect: 1 });
@@ -62,8 +70,6 @@ export function BlochSphereStereo({
     y: number;
     initialized: boolean;
   }>({ mode: null, x: 0, y: 0, initialized: false });
-  const [xrSupport, setXrSupport] = useState<XrSupportState>("checking");
-  const [xrStatus, setXrStatus] = useState<"idle" | "starting" | "presenting">("idle");
   const [xrError, setXrError] = useState<string>();
 
   xrRuntimeRef.current = { panelState: xrPanelState, actions: xrActions };
@@ -71,12 +77,20 @@ export function BlochSphereStereo({
   useEffect(() => {
     let cancelled = false;
     void probeImmersiveVr().then((support) => {
-      if (!cancelled) setXrSupport(support);
+      if (!cancelled) {
+        onXrSupportChange?.(support);
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [onXrSupportChange]);
+
+  useEffect(() => {
+    if (!introOrbit) return;
+    cameraMotion.current.introStartedAt = performance.now();
+    cameraMotion.current.introActive = true;
+  }, [introOrbit]);
 
   useEffect(() => {
     modeRef.current = displayMode;
@@ -138,7 +152,6 @@ export function BlochSphereStereo({
         toggleAutoplay: () => xrRuntimeRef.current.actions.toggleAutoplay(),
         stopAutoplay: () => xrRuntimeRef.current.actions.stopAutoplay(),
         cyclePreset: () => xrRuntimeRef.current.actions.cyclePreset(),
-        cycleQubits: () => xrRuntimeRef.current.actions.cycleQubits(),
         cyclePair: () => xrRuntimeRef.current.actions.cyclePair(),
         exitXr: () => void sessionController.end(),
       },
@@ -147,14 +160,12 @@ export function BlochSphereStereo({
     sessionController = new XrSessionController(renderer, {
       onSessionStarted: () => {
         xrScene.startSession();
-        setXrStatus("presenting");
         setXrError(undefined);
       },
       onSessionEnded: () => {
         xrScene.endSession();
         xrRuntimeRef.current.actions.stopAutoplay();
         resize();
-        setXrStatus("idle");
       },
       onSessionHidden: () => {
         xrRuntimeRef.current.actions.stopAutoplay();
@@ -163,6 +174,7 @@ export function BlochSphereStereo({
     });
     xrSceneRef.current = xrScene;
     xrSessionControllerRef.current = sessionController;
+    onXrStarterChange?.(startXr);
 
     const resize = () => {
       const bounds = mount.getBoundingClientRect();
@@ -179,6 +191,7 @@ export function BlochSphereStereo({
 
     const onPointerDown = (event: PointerEvent) => {
       pointerRef.current = { dragging: true, x: event.clientX, y: event.clientY };
+      cameraMotion.current.introActive = false;
       renderer.domElement.setPointerCapture(event.pointerId);
     };
     const onPointerMove = (event: PointerEvent) => {
@@ -285,13 +298,13 @@ export function BlochSphereStereo({
       if (renderer.xr.isPresenting) {
         renderer.render(scene, perspectiveCamera);
       } else if (modeRef.current === "anaglyph-red-green") {
-        updateCamera(perspectiveCamera);
+        updateCamera(perspectiveCamera, time);
         effect.eyeSeparation = stereoSettingsRef.current.eyeSeparation;
         effect.redGain = stereoSettingsRef.current.redGain;
         effect.cyanGain = stereoSettingsRef.current.cyanGain;
         effect.render(scene, perspectiveCamera);
       } else {
-        updateCamera(orthographicCamera);
+        updateCamera(orthographicCamera, time);
         updateOrthographicProjection(orthographicCamera, viewportRef.current.aspect, cameraMotion.current.radius, vectors.length);
         renderer.render(scene, orthographicCamera);
       }
@@ -313,6 +326,7 @@ export function BlochSphereStereo({
       window.removeEventListener("blur", onWindowBlur);
       mount.removeChild(renderer.domElement);
       xrSessionControllerRef.current = null;
+      onXrStarterChange?.(async () => false);
       xrSceneRef.current = null;
       sessionController.dispose();
       xrScene.dispose();
@@ -326,18 +340,7 @@ export function BlochSphereStereo({
   return (
     <div className={displayMode === "anaglyph-red-green" ? "bloch-stage is-stereo" : "bloch-stage"}>
       <div ref={mountRef} className="bloch-canvas" />
-      <div className="xr-entry-control" aria-live="polite">
-        {xrSupport === "supported" ? (
-          <button type="button" onClick={() => void startXr()} disabled={xrStatus !== "idle"} title="Enter immersive VR">
-            {xrStatus === "starting" ? "Starting VR…" : xrStatus === "presenting" ? "VR active" : "Enter VR"}
-          </button>
-        ) : xrSupport === "unsupported" ? (
-          <span>VR unavailable in this browser</span>
-        ) : (
-          <span>Checking VR…</span>
-        )}
-        {xrError ? <span className="xr-error">{xrError}</span> : null}
-      </div>
+      {xrError ? <div className="xr-entry-control"><span className="xr-error">{xrError}</span></div> : null}
       <div className="camera-view-controls" aria-label="Bloch sphere camera views">
         <button type="button" onClick={() => setCameraView(RESET_CAMERA_YAW, TOP_CAMERA_PITCH)} title="View from above">
           <ArrowDown aria-hidden="true" />
@@ -366,16 +369,17 @@ export function BlochSphereStereo({
     setCameraView(RESET_CAMERA_YAW, RESET_CAMERA_PITCH, STANDARD_CAMERA_RADIUS);
   }
 
-  async function startXr() {
+  async function startXr(): Promise<boolean> {
     const controller = xrSessionControllerRef.current;
-    if (!controller || controller.isPresenting) return;
-    setXrStatus("starting");
+    if (!controller) return false;
+    if (controller.isPresenting) return true;
     setXrError(undefined);
     try {
       await controller.start();
+      return true;
     } catch (error) {
-      setXrStatus("idle");
       setXrError(error instanceof Error ? error.message : "Unable to start VR.");
+      return false;
     }
   }
 
@@ -385,12 +389,21 @@ export function BlochSphereStereo({
     cameraMotion.current.targetRadius = targetRadius;
     cameraMotion.current.yawVelocity = 0;
     cameraMotion.current.pitchVelocity = 0;
+    cameraMotion.current.introActive = false;
     pointerRef.current.dragging = false;
     keyboardCameraRef.current = { mode: null, x: 0, y: 0, initialized: false };
   }
 
-  function updateCamera(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera) {
+  function updateCamera(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera, time: number) {
     const motion = cameraMotion.current;
+    if (motion.introActive && !pointerRef.current.dragging) {
+      const progress = clamp((time - motion.introStartedAt) / 3200, 0, 1);
+      const eased = progress < 0.5
+        ? 4 * progress * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+      motion.yaw = -Math.PI * 2 * (1 - eased);
+      if (progress >= 1) motion.introActive = false;
+    }
     if (modeRef.current === "anaglyph-red-green") {
       const stereoRadius = clamp(4.6 + vectors.length * 0.35, 4.8, 8.2);
       if (motion.targetRadius > stereoRadius) {

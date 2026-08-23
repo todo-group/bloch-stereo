@@ -1,410 +1,247 @@
-import { useEffect, useMemo, useState } from "react";
-import { CircleDot, Eye, PanelLeftClose, PanelLeftOpen, Pause, Play, RotateCcw, SkipBack, SkipForward } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CircleDot, Eye, LayoutGrid, Pause, Play, Repeat2, RotateCcw, Save, SkipBack, SkipForward, SlidersHorizontal } from "lucide-react";
+import { CircuitCanvas } from "./circuit/editor/CircuitCanvas";
 import { CircuitEditor } from "./circuit/editor/CircuitEditor";
 import { CorrelationMatrixStereo } from "./stereo/CorrelationMatrixStereo";
 import { BlochSphereStereo } from "./stereo/BlochSphereStereo";
 import { useAppStore } from "./store/useAppStore";
-import type { PresetName } from "./store/useAppStore";
-import {
-  blochVectorsForDensityMatrix,
-  blochVectorsForState,
-  correlationMatrix,
-  correlationMatrixFromDensityMatrix,
-} from "./circuit/simulator/density";
+import type { PresetName, UserPreset } from "./store/useAppStore";
+import type { XrSupportState } from "./xr/XrCapability";
+import type { StereoSettings } from "./circuit/types";
+import { blochVectorsForDensityMatrix, blochVectorsForState, correlationMatrix, correlationMatrixFromDensityMatrix } from "./circuit/simulator/density";
 
-const presetOptions: Array<{ value: PresetName; label: string }> = [
-  { value: "zero", label: "|0>" },
-  { value: "zero-zero", label: "|00>" },
-  { value: "zero-zero-zero", label: "|000>" },
-  { value: "bell", label: "Bell state" },
-  { value: "mixed-product", label: "I/2 x I/2" },
-  { value: "ghz", label: "GHZ state" },
-  { value: "h-cz-measure", label: "H-CZ measurement" },
-  { value: "random-swap", label: "Random swap" },
+const builtInPresetOptions: Array<{ value: PresetName; label: string }> = [
+  { value: "zero", label: "|0>" }, { value: "zero-zero", label: "|00>" }, { value: "zero-zero-zero", label: "|000>" },
+  { value: "bell", label: "Bell state" }, { value: "mixed-product", label: "I/2 x I/2" }, { value: "ghz", label: "GHZ state" },
+  { value: "h-cz-measure", label: "H-CZ measurement" }, { value: "random-swap", label: "Random swap" },
   { value: "teleportation", label: "Quantum teleportation" },
 ];
 
+type AppScreen = "startup" | "visualization" | "editor";
 type HoverActivatableElement = HTMLButtonElement | HTMLSelectElement;
 
 function activateHoveredControl(): boolean {
-  const hoveredControl = document.querySelector<HoverActivatableElement>("button:hover:not(:disabled), select:hover:not(:disabled)");
-  if (!hoveredControl) return false;
-
-  if (hoveredControl instanceof HTMLSelectElement) {
-    hoveredControl.focus();
-    const showPicker = Reflect.get(hoveredControl, "showPicker");
-    if (typeof showPicker === "function") {
-      showPicker.call(hoveredControl);
-    } else {
-      hoveredControl.click();
-    }
-    return true;
-  }
-
-  hoveredControl.click();
+  const control = document.querySelector<HoverActivatableElement>("button:hover:not(:disabled), select:hover:not(:disabled)");
+  if (!control) return false;
+  if (control instanceof HTMLSelectElement) {
+    control.focus();
+    const showPicker = Reflect.get(control, "showPicker");
+    if (typeof showPicker === "function") showPicker.call(control); else control.click();
+  } else control.click();
   return true;
 }
 
 export function App() {
+  const state = useAppStore();
   const {
-    circuit,
-    snapshots,
-    currentStep,
-    autoplay,
-    displayMode,
-    stereoSettings,
-    selectedPreset,
-    visibleQubits,
-    correlationPair,
-    nextStep,
-    previousStep,
-    resetExecution,
-    toggleAutoplay,
-    stopAutoplay,
-    setDisplayMode,
-    setStereoSettings,
-    resetStereoSettings,
-    loadPreset,
-    addGate,
-    toggleVisibleQubit,
-    setVisibleQubits,
-    setCorrelationPair,
-  } = useAppStore();
-  const [editorOpen, setEditorOpen] = useState(true);
+    circuit, snapshots, currentStep, autoplay, displayMode, stereoSettings, selectedPreset, userPresets, correlationPair,
+    nextStep, previousStep, resetExecution, toggleAutoplay, stopAutoplay, setStep, setDisplayMode, setStereoSettings,
+    resetStereoSettings, loadPreset, saveUserPreset, addGate, setCorrelationPair,
+  } = state;
+  const [screen, setScreen] = useState<AppScreen>("startup");
+  const [loop, setLoop] = useState(false);
+  const [playIntroOrbit, setPlayIntroOrbit] = useState(false);
+  const [xrSupport, setXrSupport] = useState<XrSupportState>("checking");
+  const xrStarterRef = useRef<() => Promise<boolean>>(async () => false);
   const snapshot = snapshots[currentStep] ?? snapshots[0];
   const allBlochVectors = snapshot.densityMatrix
     ? blochVectorsForDensityMatrix(snapshot.densityMatrix, circuit.numQubits)
     : blochVectorsForState(snapshot.statevector, circuit.numQubits);
-  const normalizedVisibleQubits = useMemo(
-    () => visibleQubits.filter((qubit) => qubit < circuit.numQubits).slice(0, 3).sort((first, second) => first - second),
-    [visibleQubits, circuit.numQubits],
+  const effectiveVisibleQubits = useMemo(
+    () => Array.from({ length: Math.min(3, circuit.numQubits) }, (_, qubit) => qubit),
+    [circuit.numQubits],
   );
-  const effectiveVisibleQubits = normalizedVisibleQubits.length ? normalizedVisibleQubits : [0];
+  const presetOptions = useMemo(
+    () => [...builtInPresetOptions, ...userPresets.map(({ value, label }) => ({ value, label }))],
+    [userPresets],
+  );
   const blochVectors = effectiveVisibleQubits.map((qubit) => allBlochVectors[qubit]);
   const validCorrelationPair: [number, number] =
     correlationPair[0] < circuit.numQubits && correlationPair[1] < circuit.numQubits && correlationPair[0] !== correlationPair[1]
-      ? correlationPair
-      : [0, Math.min(1, circuit.numQubits - 1)];
-  const correlations =
-    circuit.numQubits >= 2
-      ? snapshot.densityMatrix
-        ? correlationMatrixFromDensityMatrix(snapshot.densityMatrix, circuit.numQubits, validCorrelationPair[0], validCorrelationPair[1])
-        : correlationMatrix(snapshot.statevector, circuit.numQubits, validCorrelationPair[0], validCorrelationPair[1])
-      : undefined;
+      ? correlationPair : [0, Math.min(1, circuit.numQubits - 1)];
+  const correlations = circuit.numQubits >= 2 && effectiveVisibleQubits.length >= 2
+    ? snapshot.densityMatrix
+      ? correlationMatrixFromDensityMatrix(snapshot.densityMatrix, circuit.numQubits, validCorrelationPair[0], validCorrelationPair[1])
+      : correlationMatrix(snapshot.statevector, circuit.numQubits, validCorrelationPair[0], validCorrelationPair[1])
+    : undefined;
   const isStereoMode = displayMode === "anaglyph-red-green";
 
   const cycleXrPreset = () => {
-    const currentIndex = presetOptions.findIndex((preset) => preset.value === selectedPreset);
-    loadPreset(presetOptions[(currentIndex + 1) % presetOptions.length].value);
+    const index = presetOptions.findIndex((preset) => preset.value === selectedPreset);
+    loadPreset(presetOptions[(index + 1) % presetOptions.length].value);
   };
-
-  const cycleXrQubits = () => {
-    const maximum = Math.min(3, circuit.numQubits);
-    const nextCount = effectiveVisibleQubits.length >= maximum ? 1 : effectiveVisibleQubits.length + 1;
-    setVisibleQubits(Array.from({ length: nextCount }, (_, qubit) => qubit));
-  };
-
   const cycleXrPair = () => {
-    if (circuit.numQubits < 2) return;
+    if (effectiveVisibleQubits.length < 2) return;
     const pairs: Array<[number, number]> = [];
-    for (let first = 0; first < circuit.numQubits; first += 1) {
-      for (let second = first + 1; second < circuit.numQubits; second += 1) pairs.push([first, second]);
+    for (let first = 0; first < effectiveVisibleQubits.length; first += 1) {
+      for (let second = first + 1; second < effectiveVisibleQubits.length; second += 1) pairs.push([first, second]);
     }
-    const currentIndex = pairs.findIndex(
-      ([first, second]) => first === validCorrelationPair[0] && second === validCorrelationPair[1],
-    );
-    setCorrelationPair(pairs[(currentIndex + 1) % pairs.length]);
+    const index = pairs.findIndex(([first, second]) => first === validCorrelationPair[0] && second === validCorrelationPair[1]);
+    setCorrelationPair(pairs[(index + 1) % pairs.length]);
   };
 
   useEffect(() => {
-    if (!autoplay) return undefined;
-    const timer = window.setInterval(() => nextStep(), 700);
-    return () => window.clearInterval(timer);
-  }, [autoplay, nextStep]);
+    if (xrSupport === "unsupported") setDisplayMode("anaglyph-red-green");
+  }, [setDisplayMode, xrSupport]);
+
+  useEffect(() => {
+    if (!autoplay || snapshots.length <= 1) return undefined;
+    const atEnd = currentStep >= snapshots.length - 1;
+    if (atEnd && !loop) {
+      stopAutoplay();
+      return undefined;
+    }
+    const timer = window.setTimeout(() => {
+      const current = useAppStore.getState();
+      if (loop && current.currentStep >= current.snapshots.length - 1) useAppStore.setState({ currentStep: 0, autoplay: true });
+      else {
+        const willReachEnd = loop && current.currentStep + 1 >= current.snapshots.length - 1;
+        current.nextStep();
+        if (willReachEnd) useAppStore.setState({ autoplay: true });
+      }
+    }, atEnd ? 1400 : 700);
+    return () => window.clearTimeout(timer);
+  }, [autoplay, currentStep, loop, snapshots.length, stopAutoplay]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (screen === "startup") return;
       const target = event.target;
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement ||
-        (target instanceof HTMLElement && target.isContentEditable)
-      ) {
-        return;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || (target instanceof HTMLElement && target.isContentEditable)) return;
+      if (event.key === " " || event.code === "Space") { if (activateHoveredControl()) event.preventDefault(); }
+      else if (event.key === "ArrowLeft") { event.preventDefault(); previousStep(); }
+      else if (event.key === "ArrowRight") { event.preventDefault(); nextStep(); }
+      else if (event.key === "r" || event.key === "R" || event.key === "Home") { event.preventDefault(); resetExecution(); }
+      else if (event.key === "+" || event.code === "NumpadAdd") { event.preventDefault(); addGate(); }
+      else if (event.key === "e" || event.key === "E") {
+        event.preventDefault();
+        stopAutoplay();
+        setLoop(false);
+        setPlayIntroOrbit(false);
+        setScreen((current) => current === "editor" ? "visualization" : "editor");
       }
-      if (event.key === " " || event.code === "Space") {
-        if (activateHoveredControl()) {
-          event.preventDefault();
-        }
-      } else if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        previousStep();
-      } else if (event.key === "ArrowRight") {
-        event.preventDefault();
-        nextStep();
-      } else if (event.key === "r" || event.key === "R" || event.key === "Home") {
-        event.preventDefault();
-        resetExecution();
-      } else if (event.key === "+" || event.code === "NumpadAdd") {
-        event.preventDefault();
-        addGate();
-      } else if (event.key === "e" || event.key === "E") {
-        event.preventDefault();
-        setEditorOpen((open) => !open);
-      } else if (event.key === "s" || event.key === "S") {
-        event.preventDefault();
-        setDisplayMode(displayMode === "2d" ? "anaglyph-red-green" : "2d");
-      }
+      else if (event.key === "s" || event.key === "S") { event.preventDefault(); setDisplayMode(displayMode === "2d" ? "anaglyph-red-green" : "2d"); }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [addGate, displayMode, nextStep, previousStep, resetExecution, setDisplayMode, setEditorOpen]);
+  }, [addGate, displayMode, nextStep, previousStep, resetExecution, screen, setDisplayMode, stopAutoplay]);
+
+  const enterApplication = async () => {
+    if (xrSupport === "supported") await xrStarterRef.current(); else setDisplayMode("anaglyph-red-green");
+    setPlayIntroOrbit(true);
+    setScreen("visualization");
+  };
+
+  const toggleLoop = () => {
+    if (loop) {
+      setLoop(false);
+      stopAutoplay();
+      return;
+    }
+    setLoop(true);
+    const current = useAppStore.getState();
+    if (current.currentStep >= current.snapshots.length - 1) useAppStore.setState({ currentStep: 0, autoplay: true });
+    else if (!current.autoplay) current.toggleAutoplay();
+  };
+
+  const openEditor = () => {
+    stopAutoplay();
+    setLoop(false);
+    setPlayIntroOrbit(false);
+    setScreen("editor");
+  };
 
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true">
-            <CircleDot className="brand-mark-red" />
-            <CircleDot className="brand-mark-cyan" />
-          </span>
-          <div>
-            <h1>Bloch Stereo</h1>
-            <p>Quantum circuit editor</p>
-            <small className="app-version">v{__APP_VERSION__}</small>
-          </div>
-        </div>
-        <div className="transport" aria-label="Execution controls">
-          <button type="button" onClick={previousStep} title="Previous step">
-            <SkipBack aria-hidden="true" />
-            Prev
-          </button>
-          <button type="button" onClick={toggleAutoplay} title="Autoplay">
-            {autoplay ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}
-            {autoplay ? "Pause" : "Auto"}
-          </button>
-          <button type="button" onClick={nextStep} title="Next step">
-            <SkipForward aria-hidden="true" />
-            Next
-          </button>
-          <button type="button" onClick={resetExecution} title="Reset execution">
-            <RotateCcw aria-hidden="true" />
-            Reset
-          </button>
-          <button
-            type="button"
-            className={displayMode === "anaglyph-red-green" ? "is-active" : ""}
-            onClick={() => setDisplayMode(displayMode === "2d" ? "anaglyph-red-green" : "2d")}
-            title="Stereo toggle"
-          >
-            <Eye aria-hidden="true" />
-            Stereo
-          </button>
-        </div>
-        <div className="preset-controls" aria-label="Preset circuits">
-          <label>
-            Preset
-            <select
-              value={selectedPreset ?? ""}
-              onChange={(event) => {
-                const preset = event.currentTarget.value as PresetName;
-                if (preset) loadPreset(preset);
-                event.currentTarget.blur();
-              }}
-            >
-              <option value="">Choose circuit</option>
-              {presetOptions.map((preset) => (
-                <option key={preset.value} value={preset.value}>
-                  {preset.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <div
-          className={isStereoMode ? "stereo-controls" : "stereo-controls is-disabled"}
-          aria-label="Stereo calibration controls"
-          aria-disabled={!isStereoMode}
-        >
-          <label>
-            Eye
-            <input
-              type="range"
-              min="0.04"
-              max="0.3"
-              step="0.01"
-              value={stereoSettings.eyeSeparation}
-              disabled={!isStereoMode}
-              onChange={(event) => setStereoSettings({ eyeSeparation: Number(event.currentTarget.value) })}
-            />
-            <output>{stereoSettings.eyeSeparation.toFixed(2)}</output>
-          </label>
-          <label>
-            Focus
-            <input
-              type="range"
-              min="2.8"
-              max="8"
-              step="0.1"
-              value={stereoSettings.convergenceDistance}
-              disabled={!isStereoMode}
-              onChange={(event) => setStereoSettings({ convergenceDistance: Number(event.currentTarget.value) })}
-            />
-            <output>{stereoSettings.convergenceDistance.toFixed(1)}</output>
-          </label>
-          <label>
-            Red
-            <input
-              type="range"
-              min="0.3"
-              max="1.3"
-              step="0.05"
-              value={stereoSettings.redGain}
-              disabled={!isStereoMode}
-              onChange={(event) => setStereoSettings({ redGain: Number(event.currentTarget.value) })}
-            />
-            <output>{stereoSettings.redGain.toFixed(2)}</output>
-          </label>
-          <label>
-            Cyan
-            <input
-              type="range"
-              min="0.2"
-              max="1.2"
-              step="0.05"
-              value={stereoSettings.cyanGain}
-              disabled={!isStereoMode}
-              onChange={(event) => setStereoSettings({ cyanGain: Number(event.currentTarget.value) })}
-            />
-            <output>{stereoSettings.cyanGain.toFixed(2)}</output>
-          </label>
-          <button type="button" onClick={resetStereoSettings} disabled={!isStereoMode} title="Reset stereo calibration defaults">
-            <RotateCcw aria-hidden="true" />
-            Default
-          </button>
-        </div>
-        <div className="step-counter">
-          <span>{currentStep}</span>
-          <small>/ {Math.max(0, snapshots.length - 1)}</small>
-        </div>
-      </header>
-
-      <section className={editorOpen ? "workspace" : "workspace is-editor-collapsed"}>
-        {editorOpen ? <CircuitEditor /> : null}
-        <section className="visual-stage" aria-label="Bloch visualization">
-          <button
-            type="button"
-            className="editor-toggle"
-            onClick={() => setEditorOpen((open) => !open)}
-            title={editorOpen ? "Hide circuit editor" : "Show circuit editor"}
-            aria-expanded={editorOpen}
-          >
-            {editorOpen ? <PanelLeftClose aria-hidden="true" /> : <PanelLeftOpen aria-hidden="true" />}
-            {editorOpen ? "Hide Editor" : "Show Editor"}
-          </button>
+    <main className={`app-shell screen-${screen}`}>
+      {screen === "editor" ? (
+        <>
+          <header className="editor-topbar floating-panel">
+            <Brand compact />
+            <PresetSelector selectedPreset={selectedPreset} userPresets={userPresets} loadPreset={loadPreset} saveUserPreset={saveUserPreset} />
+            <StereoCalibration isStereoMode={isStereoMode} xrSupport={xrSupport} stereoSettings={stereoSettings} setStereoSettings={setStereoSettings} resetStereoSettings={resetStereoSettings} />
+            <button type="button" className="mode-switch primary-action" onClick={() => { stopAutoplay(); setPlayIntroOrbit(false); setScreen("visualization"); }}><Eye aria-hidden="true" />Bloch View</button>
+          </header>
+          <section className="editor-workspace"><CircuitEditor /></section>
+        </>
+      ) : (
+        <section className="visualization-screen" aria-label="Bloch visualization" aria-hidden={screen === "startup"}>
           <BlochSphereStereo
-            vectors={blochVectors}
-            labels={effectiveVisibleQubits.map((qubit) => `q${qubit}`)}
-            qubitIndices={effectiveVisibleQubits}
-            displayMode={displayMode}
-            stereoSettings={stereoSettings}
-            activeStep={currentStep}
+            vectors={blochVectors} labels={effectiveVisibleQubits.map((qubit) => `q${qubit}`)} qubitIndices={effectiveVisibleQubits}
+            displayMode={displayMode} stereoSettings={stereoSettings} activeStep={currentStep} introOrbit={playIntroOrbit}
+            onXrSupportChange={setXrSupport} onXrStarterChange={(startXr) => { xrStarterRef.current = startXr; }}
             xrPanelState={{
-              step: currentStep,
-              totalSteps: Math.max(0, snapshots.length - 1),
-              canPrevious: currentStep > 0,
-              canNext: currentStep < snapshots.length - 1,
-              canSelectPair: circuit.numQubits >= 2,
-              autoplay,
+              step: currentStep, totalSteps: Math.max(0, snapshots.length - 1), canPrevious: currentStep > 0,
+              canNext: currentStep < snapshots.length - 1, canSelectPair: circuit.numQubits === 3, autoplay,
               activeOperation: snapshot.appliedOp?.name.toUpperCase() ?? "INITIAL",
               presetLabel: presetOptions.find((preset) => preset.value === selectedPreset)?.label ?? "Custom",
-              qubitsLabel: effectiveVisibleQubits.map((qubit) => `q${qubit}`).join(","),
               pairLabel: circuit.numQubits >= 2 ? `q${validCorrelationPair[0]}/q${validCorrelationPair[1]}` : "N/A",
               classicalLabel: snapshot.classicalBits.map((bit, index) => `c${index}:${bit}`).join(" "),
-              correlationLabel: correlations
-                ? `C ${correlations.flat().map((value) => value.toFixed(1)).join(" ")}`
-                : "C N/A",
+              correlationLabel: correlations ? `C ${correlations.flat().map((value) => value.toFixed(1)).join(" ")}` : "C N/A",
             }}
-            xrActions={{
-              previousStep,
-              nextStep,
-              reset: resetExecution,
-              toggleAutoplay,
-              stopAutoplay,
-              cyclePreset: cycleXrPreset,
-              cycleQubits: cycleXrQubits,
-              cyclePair: cycleXrPair,
-            }}
+            xrActions={{ previousStep, nextStep, reset: resetExecution, toggleAutoplay, stopAutoplay, cyclePreset: cycleXrPreset, cyclePair: cycleXrPair }}
           />
-          <div className="visual-readouts">
-            <div className="view-controls">
-              <div>
-                <span>Bloch spheres</span>
-                <div className="toggle-row">
-                  {Array.from({ length: circuit.numQubits }, (_, qubit) => (
-                    <button
-                      key={qubit}
-                      type="button"
-                      className={effectiveVisibleQubits.includes(qubit) ? "is-active" : ""}
-                      onClick={() => toggleVisibleQubit(qubit)}
-                    >
-                      q{qubit}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {circuit.numQubits >= 2 ? (
-                <div>
-                  <span>Correlation</span>
-                  <div className="pair-controls">
-                    <select
-                      value={validCorrelationPair[0]}
-                      onChange={(event) => {
-                        const first = Number(event.currentTarget.value);
-                        setCorrelationPair([first, first === validCorrelationPair[1] ? (first === 0 ? 1 : 0) : validCorrelationPair[1]]);
-                      }}
-                    >
-                      {Array.from({ length: circuit.numQubits }, (_, qubit) => (
-                        <option key={qubit} value={qubit}>
-                          q{qubit}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={validCorrelationPair[1]}
-                      onChange={(event) => {
-                        const second = Number(event.currentTarget.value);
-                        setCorrelationPair([second === validCorrelationPair[0] ? (second === 0 ? 1 : 0) : validCorrelationPair[0], second]);
-                      }}
-                    >
-                      {Array.from({ length: circuit.numQubits }, (_, qubit) => (
-                        <option key={qubit} value={qubit}>
-                          q{qubit}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-            <div className="state-strip">
-              {snapshot.classicalBits.map((bit, index) => (
-                <span key={index}>
-                  c{index}: {bit}
-                </span>
-              ))}
-            </div>
-            {correlations ? (
-              <CorrelationMatrixStereo
-                matrix={correlations}
-                displayMode={displayMode}
-                pairLabel={`q${validCorrelationPair[0]}/q${validCorrelationPair[1]}`}
-              />
-            ) : null}
+          <div className="visual-brand floating-panel"><Brand compact /></div>
+          <div className="visual-mode-controls floating-panel" aria-label="Display mode">
+            <button type="button" className={displayMode !== "2d" ? "is-active" : ""} onClick={() => xrSupport === "supported" ? void xrStarterRef.current() : setDisplayMode("anaglyph-red-green")}><Eye aria-hidden="true" />{xrSupport === "supported" ? "VR" : "Stereo"}</button>
+            <button type="button" className={displayMode === "2d" ? "is-active" : ""} onClick={() => setDisplayMode("2d")}>2D</button>
+            <button type="button" onClick={openEditor}><SlidersHorizontal aria-hidden="true" />Circuit Editor</button>
+          </div>
+          <div className="visual-transport floating-panel" aria-label="Execution controls">
+            <button type="button" onClick={previousStep} disabled={currentStep === 0} title="Previous step"><SkipBack aria-hidden="true" />Prev</button>
+            <button type="button" onClick={toggleAutoplay} disabled={snapshots.length <= 1} title="Autoplay">{autoplay ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}{autoplay ? "Pause" : "Auto"}</button>
+            <button type="button" onClick={nextStep} disabled={currentStep >= snapshots.length - 1} title="Next step"><SkipForward aria-hidden="true" />Next</button>
+            <button type="button" onClick={() => { setLoop(false); resetExecution(); }} title="Reset execution"><RotateCcw aria-hidden="true" />Reset</button>
+            <button type="button" className={loop ? "is-active" : ""} onClick={toggleLoop} disabled={snapshots.length <= 1} title="Loop autoplay"><Repeat2 aria-hidden="true" />Loop</button>
+            <span className="step-counter"><b>{currentStep}</b><small>/ {Math.max(0, snapshots.length - 1)}</small></span>
+          </div>
+          {correlations ? <div className="visual-correlation floating-panel">
+            {circuit.numQubits === 3 ? <CorrelationPairSelector pair={validCorrelationPair} onChange={setCorrelationPair} /> : null}
+            <CorrelationMatrixStereo matrix={correlations} displayMode={displayMode} pairLabel={`q${validCorrelationPair[0]}/q${validCorrelationPair[1]}`} />
+          </div> : null}
+          <div className="visual-circuit floating-panel">
+            <div className="visual-circuit-heading"><span><LayoutGrid aria-hidden="true" />Quantum circuit</span><span>Gate {currentStep} / {circuit.ops.length}</span></div>
+            <CircuitCanvas circuit={circuit} currentStep={currentStep} onStepSelect={setStep} readOnly compact />
           </div>
         </section>
-      </section>
+      )}
+      {screen === "startup" ? <StartupScreen onEnter={() => void enterApplication()} xrSupport={xrSupport} /> : null}
     </main>
   );
+}
+
+function Brand({ compact = false }: { compact?: boolean }) {
+  return <div className={compact ? "brand is-compact" : "brand"}><span className="brand-mark" aria-hidden="true"><CircleDot className="brand-mark-red" /><CircleDot className="brand-mark-cyan" /></span><div><h1>Bloch Stereo</h1>{compact ? null : <p>Quantum state visualization</p>}</div></div>;
+}
+
+function StartupScreen({ onEnter, xrSupport }: { onEnter: () => void; xrSupport: XrSupportState }) {
+  return <section className="startup-screen" aria-label="Bloch Stereo startup"><div className="startup-glow" aria-hidden="true" /><div className="startup-card">
+    <Brand /><p className="startup-version">Version {__APP_VERSION__}</p>
+    <button type="button" className="startup-enter" onClick={onEnter}>Enter <span aria-hidden="true">→</span></button>
+    <p className="startup-mode-note">{xrSupport === "supported" ? "VR ready" : xrSupport === "unsupported" ? "Anaglyph stereo ready" : "Checking display capabilities…"}</p>
+    <img className="startup-sqai-logo" src={`${import.meta.env.BASE_URL}assets/sqai-basic-en-rgb350ppi.png`} alt="SQAI" />
+  </div></section>;
+}
+
+function PresetSelector({ selectedPreset, userPresets, loadPreset, saveUserPreset }: { selectedPreset?: PresetName; userPresets: UserPreset[]; loadPreset: (preset: PresetName) => void; saveUserPreset: () => void }) {
+  const options = [...builtInPresetOptions, ...userPresets.map(({ value, label }) => ({ value, label }))];
+  return <div className="preset-field"><label>Preset<select value={selectedPreset ?? ""} onChange={(event) => { const preset = event.currentTarget.value as PresetName; if (preset) loadPreset(preset); event.currentTarget.blur(); }}><option value="">Choose circuit</option>{options.map((preset) => <option key={preset.value} value={preset.value}>{preset.label}</option>)}</select></label><button type="button" onClick={saveUserPreset} title="Save current circuit as a preset"><Save aria-hidden="true" />SAVE</button></div>;
+}
+
+const correlationPairs: Array<[number, number]> = [[0, 1], [0, 2], [1, 2]];
+
+function CorrelationPairSelector({ pair, onChange }: { pair: [number, number]; onChange: (pair: [number, number]) => void }) {
+  return <div className="correlation-pair-selector" aria-label="Correlation pair">{correlationPairs.map(([first, second]) => <button key={`${first}-${second}`} type="button" className={pair[0] === first && pair[1] === second ? "is-active" : ""} onClick={() => onChange([first, second])}>q{first}/q{second}</button>)}</div>;
+}
+
+function StereoCalibration({ isStereoMode, xrSupport, stereoSettings, setStereoSettings, resetStereoSettings }: { isStereoMode: boolean; xrSupport: XrSupportState; stereoSettings: StereoSettings; setStereoSettings: (settings: Partial<StereoSettings>) => void; resetStereoSettings: () => void }) {
+  return <div className="editor-stereo-settings" aria-label="View and color settings">
+    <RangeSetting label="Eye" min="0.04" max="0.3" step="0.01" value={stereoSettings.eyeSeparation} onChange={(eyeSeparation) => setStereoSettings({ eyeSeparation })} digits={2} />
+    <RangeSetting label="Focus" min="2.8" max="8" step="0.1" value={stereoSettings.convergenceDistance} onChange={(convergenceDistance) => setStereoSettings({ convergenceDistance })} digits={1} />
+    {xrSupport !== "supported" ? <><RangeSetting label="Red" min="0.3" max="1.3" step="0.05" value={stereoSettings.redGain} onChange={(redGain) => setStereoSettings({ redGain })} digits={2} disabled={!isStereoMode} /><RangeSetting label="Cyan" min="0.2" max="1.2" step="0.05" value={stereoSettings.cyanGain} onChange={(cyanGain) => setStereoSettings({ cyanGain })} digits={2} disabled={!isStereoMode} /></> : null}
+    <button type="button" onClick={resetStereoSettings}><RotateCcw aria-hidden="true" />Default</button>
+  </div>;
+}
+
+function RangeSetting({ label, value, min, max, step, digits, disabled = false, onChange }: { label: string; value: number; min: string; max: string; step: string; digits: number; disabled?: boolean; onChange: (value: number) => void }) {
+  return <label>{label}<input type="range" min={min} max={max} step={step} value={value} disabled={disabled} onChange={(event) => onChange(Number(event.currentTarget.value))} /><output>{value.toFixed(digits)}</output></label>;
 }
